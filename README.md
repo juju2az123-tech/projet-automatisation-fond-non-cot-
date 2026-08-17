@@ -1,6 +1,6 @@
 # Consolidation Fonds Non Cotés — Althos
 
-Deux outils pour le même besoin : compléter la consolidation d'un client avec, pour chaque fonds
+Trois outils pour le même besoin : compléter la consolidation d'un client avec, pour chaque fonds
 non coté détenu :
 
 - la date du **prochain ordre d'entrée** (souscription) possible,
@@ -8,11 +8,56 @@ non coté détenu :
 - la date de la **prochaine réception du cash** suite à un rachat,
 - si le **client est concerné par une pénalité de sortie** au vu de sa date d'investissement.
 
-- **`index.html`** — outil web autonome, pour une saisie manuelle rapide fonds par fonds.
-- **`scripts/build_client_workbook.py`** — ajoute une feuille "Calendrier de sortie" directement
-  dans le classeur Excel de consolidation du conseiller (voir section dédiée plus bas).
+- **`ajout-calendrier-sortie.html`** ⭐ — le conseiller **dépose son fichier de consolidation
+  client réel** (glisser-déposer) ; la feuille « Calendrier de sortie » est générée et
+  téléchargée automatiquement, sans aucune saisie. C'est l'outil à utiliser au quotidien —
+  voir la section dédiée ci-dessous.
+- **`index.html`** — outil de saisie manuelle fonds par fonds, pour un usage ponctuel sans
+  partir d'un fichier Excel existant (ex. réponse rapide au téléphone).
+- **`scripts/build_client_workbook.py`** — équivalent en ligne de commande (Python) du premier
+  outil, pour un traitement par script / en lot.
 
-## Utilisation (page web)
+## Utilisation (dépôt automatisé — `ajout-calendrier-sortie.html`)
+
+Ouvrir `ajout-calendrier-sortie.html` dans un navigateur (double-clic, aucun serveur requis,
+aucune donnée envoyée sur internet — tout se passe dans le navigateur).
+
+1. Glisser-déposer (ou cliquer pour parcourir) le fichier Excel de consolidation du client.
+2. Le traitement est automatique : une feuille **« Calendrier de sortie »** est ajoutée juste
+   après la feuille « Consolidation », avec les mêmes lignes de fonds et la même mise en forme.
+   Seules les colonnes « Contrat n / TOTAL / Risque / SRI / VL / Mouvements » sont remplacées par
+   les 5 colonnes utiles : `Date d'investissement` (à saisir), `Prochain ordre — entrée`,
+   `Prochain ordre — sortie`, `Prochaine réception du cash`, `Pénalité de sortie`.
+3. Le fichier complété se télécharge automatiquement (`nomdufichier - avec calendrier de sortie.xlsx`).
+   Un bouton permet de le retélécharger si besoin.
+4. Ouvrir le fichier téléchargé, saisir la date d'investissement pour chaque fonds non coté
+   détenu par le client : les colonnes se recalculent automatiquement (formules Excel).
+
+**Comment ça détecte les lignes ?** Aucune structure de fichier n'est supposée fixe : l'outil
+repère la feuille via son en-tête (« Support » en colonne A), puis distingue les lignes de
+catégorie (bandeau en gras/coloré) des lignes de fonds, et reconnaît un fonds non coté par son
+ISIN (comparé à la base Althos) — peu importe le nombre de contrats, l'ordre des fonds ou le
+nombre de lignes du fichier déposé. Les fonds cotés (Actions, Fonds prudents…) ou non reconnus
+affichent simplement « — ». Testé avec succès sur deux fichiers de consolidation clients réels
+aux structures différentes (17 vs 9 contrats, 483 vs 294 lignes).
+
+### Comment ça marche techniquement
+
+Tout tourne dans le navigateur via [ExcelJS](https://github.com/exceljs/exceljs) (vendorisé dans
+`vendor/exceljs.min.js`, aucun accès réseau nécessaire) — voir `js/exit_calendar_builder.js`.
+C'est un portage JavaScript de `scripts/build_client_workbook.py` (mêmes formules, même logique
+de calcul — voir la section dédiée à ce script plus bas pour le détail), rendu robuste face à des
+fichiers clients réels dont la structure (nombre de contrats, position des catégories, nombre de
+lignes) varie d'un dossier à l'autre.
+
+⚠️ Même limite que pour le script Python : le recalcul automatique des formules n'a pas pu être
+vérifié par exécution réelle dans cet environnement (LibreOffice indisponible ici — voir plus
+bas). Les formules ont été relues manuellement et testées de bout en bout (dépôt → génération →
+relecture de la structure et des formules) sur les deux fichiers clients réels fournis, sans
+erreur JavaScript ni incohérence de structure détectée. Vérifiez à l'ouverture chez vous qu'aucune
+cellule n'affiche `#NAME?` / `#REF!` / `#VALUE!`.
+
+## Utilisation (page web de saisie manuelle — `index.html`)
 
 Ouvrir `index.html` directement dans un navigateur (double-clic, aucun serveur requis).
 
@@ -34,12 +79,21 @@ page. L'outil est une aide à la consolidation, pas une source réglementaire.
 ## Structure du dépôt
 
 ```
-index.html                          Page de l'outil (HTML + CSS + JS, aucune dépendance externe)
-data/funds_data.js                  Données des fonds générées (voir ci-dessous) — chargées par index.html
+ajout-calendrier-sortie.html        Outil principal : dépôt d'un fichier client -> feuille ajoutée automatiquement
+js/exit_calendar_builder.js         Logique de génération (portage JS de scripts/build_client_workbook.py)
+vendor/exceljs.min.js               Bibliothèque ExcelJS vendorisée (lecture/écriture .xlsx dans le navigateur)
+index.html                          Outil de saisie manuelle (HTML + CSS + JS, aucune dépendance externe)
+data/funds_data.js                  Données des fonds générées (voir ci-dessous) — chargées par les 2 outils web
 scripts/build_data.py               Script qui regénère data/funds_data.js à partir des fichiers source
+scripts/build_client_workbook.py    Équivalent Python (ligne de commande) de ajout-calendrier-sortie.html
 source/Calendriers_de_fonds_Althos.xlsx     Classeur "Calendriers" (feuilles Suivi / Calendriers)
 source/Bibliotheque_de_fonds_Althos.xlsx    Classeur "Bibliothèque de fonds" (feuille Fonds)
+source/ConsolidationTemplateAlthosAI_V5.xlsx  Template de consolidation vierge, utilisé par build_client_workbook.py
 ```
+
+⚠️ **Ne jamais committer de fichier de consolidation client réel dans ce dépôt** (même anonymisé) :
+seul le template vierge ci-dessus doit être versionné. Les fichiers clients sont à traiter
+localement via `ajout-calendrier-sortie.html`, qui ne transmet rien en dehors du navigateur.
 
 ## Mettre à jour les données (nouveau calendrier annuel, nouvelle pénalité, nouveau fonds…)
 
