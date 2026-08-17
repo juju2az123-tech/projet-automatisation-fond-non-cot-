@@ -1,14 +1,20 @@
 /*
  * Ajoute, dans un classeur de consolidation client (feuille "Consolidation" : un fonds par
- * ligne, catégories en lignes surlignées, ISIN en colonne B), une nouvelle feuille
- * "Calendrier de sortie" au même format, avec 5 colonnes pilotées par formules Excel :
+ * ligne, catégories en lignes surlignées, ISIN en colonne B, montants par contrat en colonnes
+ * suivantes), une nouvelle feuille "Calendrier de sortie" — un tableau compact listant
+ * UNIQUEMENT les fonds que le client détient réellement (montant total non nul) ET pour
+ * lesquels un calendrier de sortie officiel est connu dans la base Althos. Pas de fonds coté,
+ * pas de fonds non détenu, pas de ligne "—" : si un fonds n'a rien à afficher, il n'apparaît
+ * simplement pas.
+ *
+ * Pour chaque fonds retenu, 5 colonnes pilotées par formules Excel :
  *   Date d'investissement | Prochain ordre — entrée | Prochain ordre — sortie |
  *   Prochaine réception du cash | Pénalité de sortie
  *
  * Port JavaScript (ExcelJS, exécuté dans le navigateur) de scripts/build_client_workbook.py —
- * même logique de calcul, mêmes formules. Contrairement au script Python, la structure du
- * fichier (numéros de ligne des catégories, nombre de colonnes "Contrat") N'EST PAS supposée
- * fixe : elle est détectée dynamiquement pour s'adapter à n'importe quel classeur client réel.
+ * même logique de calcul, mêmes formules. La structure du fichier source (numéros de ligne,
+ * nombre de colonnes "Contrat") N'EST PAS supposée fixe : elle est détectée dynamiquement pour
+ * s'adapter à n'importe quel classeur client réel.
  *
  * Dépend de window.FUNDS_DATA (data/funds_data.js) et de la bibliothèque ExcelJS globale
  * (vendor/exceljs.min.js), à charger avant ce fichier.
@@ -49,17 +55,6 @@
     // Deep clone via JSON round-trip: ExcelJS style objects are plain data (no functions),
     // safe to clone this way and avoids two cells sharing (and mutating) the same object.
     return JSON.parse(JSON.stringify(cell.style || {}));
-  }
-
-  function parseRangeCols(rangeStr) {
-    const m = rangeStr.match(/^\$?([A-Z]+)\$?(\d+):\$?([A-Z]+)\$?(\d+)$/);
-    if (!m) return null;
-    const colNum = (letters) => {
-      let n = 0;
-      for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
-      return n;
-    };
-    return { c1: colNum(m[1]), r1: +m[2], c2: colNum(m[3]), r2: +m[4] };
   }
 
   // -------------------------------------------------------------------------
@@ -179,6 +174,16 @@
     return null;
   }
 
+  /** Colonne dont l'en-tête (sur headerRow) vaut "TOTAL" (montant total détenu par fonds). */
+  function findTotalColumn(ws, headerRow) {
+    const lastCol = ws.actualColumnCount || ws.columnCount;
+    for (let c = 3; c <= lastCol; c++) {
+      const v = (ws.getCell(headerRow, c).value || "").toString().trim().toUpperCase();
+      if (v === "TOTAL") return c;
+    }
+    return null;
+  }
+
   /** Classe chaque ligne : 'category' (bandeau, à ignorer), 'blank', ou 'fund'. */
   function classifyRows(ws, headerRow) {
     const categoryRows = [];
@@ -195,6 +200,17 @@
       }
     }
     return { categoryRows, fundRows };
+  }
+
+  /** Montant total détenu sur une ligne fonds : somme des colonnes "Contrat" (3..totalCol-1). */
+  function holdingAmount(ws, row, totalCol) {
+    if (!totalCol) return null; // inconnu : on ne filtre pas sur le montant
+    let sum = 0;
+    for (let c = 3; c < totalCol; c++) {
+      const v = ws.getCell(row, c).value;
+      if (typeof v === "number") sum += v;
+    }
+    return sum;
   }
 
   // -------------------------------------------------------------------------
@@ -214,110 +230,78 @@
     return colLetter(HELPER_FIRST_COL + HELPER_NAMES.indexOf(name));
   }
 
-  function unmergeOverlapping(ws, fromCol) {
-    const merges = ws.model.merges ? ws.model.merges.slice() : [];
-    merges.forEach((rangeStr) => {
-      const parsed = parseRangeCols(rangeStr);
-      if (parsed && parsed.c2 >= fromCol) {
-        try { ws.unMergeCells(rangeStr); } catch (e) { /* already gone */ }
-      }
-    });
-  }
-
   function buildExitSheet(workbook, srcWs, headerRow, calLastRow, penLastRow, fundsByIsin) {
     const cal = (col) => `BDD_Calendrier!$${col}$2:$${col}$${calLastRow}`;
     const pen = (col) => `BDD_Penalites!$${col}$2:$${col}$${penLastRow}`;
 
     const ws = workbook.addWorksheet("Calendrier de sortie");
-    const lastSrcCol = srcWs.actualColumnCount || srcWs.columnCount;
-    const lastSrcRow = srcWs.actualRowCount || srcWs.rowCount;
 
-    // 1) Copie intégrale de la feuille source (valeurs + styles + largeurs + fusions),
-    //    à l'exception des colonnes C.. (Contrat/TOTAL/etc.), qui seront reconstruites.
-    for (let c = 1; c <= lastSrcCol; c++) {
-      const col = srcWs.getColumn(c);
-      ws.getColumn(c).width = col.width;
-    }
-    for (let r = 1; r <= lastSrcRow; r++) {
-      const srcRow = srcWs.getRow(r);
-      const dstRow = ws.getRow(r);
-      dstRow.height = srcRow.height;
-      for (let c = 1; c <= lastSrcCol; c++) {
-        const srcCell = srcWs.getCell(r, c);
-        const dstCell = ws.getCell(r, c);
-        dstCell.value = srcCell.value && srcCell.value.formula ? null : srcCell.value;
-        dstCell.style = cloneStyle(srcCell);
-      }
-    }
-    (srcWs.model.merges || []).forEach((rangeStr) => {
-      try { ws.mergeCells(rangeStr); } catch (e) { /* ignore duplicate */ }
+    // 1) Repérage des fonds à retenir : détenus (montant total non nul) ET dotés d'un
+    //    calendrier de sortie connu dans la base Althos. Tout le reste (fonds cotés, fonds
+    //    non cotés non détenus, fonds sans calendrier) n'apparaît pas dans cette feuille.
+    const totalCol = findTotalColumn(srcWs, headerRow);
+    const { fundRows } = classifyRows(srcWs, headerRow);
+
+    const selected = [];
+    fundRows.forEach((srcRow) => {
+      const isinRaw = srcWs.getCell(srcRow, 2).value;
+      const isin = typeof isinRaw === "string" ? isinRaw.trim() : isinRaw;
+      const fund = isin ? fundsByIsin.get(isin) : null;
+      if (!fund || !fund.hasCalendar) return;
+      const amount = holdingAmount(srcWs, srcRow, totalCol);
+      const isHeld = amount === null || Math.abs(amount) > 0.005;
+      if (!isHeld) return;
+      selected.push({
+        isin,
+        nom: srcWs.getCell(srcRow, 1).value || fund.nom,
+        amount,
+      });
     });
 
-    // 2) Purge des colonnes C..fin (Contrat n / TOTAL / Risque / SRI / VL / Mouvements)
-    unmergeOverlapping(ws, 3);
-    ws.spliceColumns(3, lastSrcCol - 2);
-
-    // 3) En-têtes des 5 nouvelles colonnes, avec le style de l'en-tête d'origine (colonne B)
-    const headerStyle = cloneStyle(srcWs.getCell(headerRow, 2));
+    // 2) En-tête du tableau (style repris de l'en-tête "Support" de la feuille source)
+    const headerStyle = cloneStyle(srcWs.getCell(headerRow, 1));
     const headers = [
-      "Date d'investissement",
-      "Prochain ordre — entrée",
-      "Prochain ordre — sortie",
-      "Prochaine réception du cash",
-      "Pénalité de sortie",
+      "Fonds", "ISIN", "Date d'investissement",
+      "Prochain ordre — entrée", "Prochain ordre — sortie",
+      "Prochaine réception du cash", "Pénalité de sortie",
     ];
     headers.forEach((label, i) => {
-      const cell = ws.getCell(headerRow, 3 + i);
+      const cell = ws.getCell(1, i + 1);
       cell.value = label;
       cell.style = JSON.parse(JSON.stringify(headerStyle));
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     });
-    ws.getRow(headerRow).height = 42;
-
-    const widths = [16, 32, 32, 30, 46];
-    widths.forEach((w, i) => { ws.getColumn(3 + i).width = w; });
+    ws.getRow(1).height = 30;
+    const widths = [34, 14, 16, 32, 32, 30, 46];
+    widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     HELPER_NAMES.forEach((name) => { ws.getColumn(colNumOf(helperCol(name))).hidden = true; });
 
-    // 4) Classement des lignes + écriture des formules
-    const { categoryRows, fundRows } = classifyRows(ws, headerRow);
+    if (!selected.length) {
+      ws.getCell(2, 1).value =
+        "Aucun fonds avec calendrier de sortie connu n'est actuellement détenu par ce client " +
+        "(montant total nul, ou fonds hors périmètre \"fonds non cotés suivis\").";
+      ws.mergeCells(2, 1, 2, headers.length);
+      ws.getCell(2, 1).alignment = { wrapText: true, vertical: "middle" };
+      ws.getRow(2).height = 30;
+      return { ws, selectedCount: 0, fundRowsScanned: fundRows.length };
+    }
 
-    categoryRows.forEach((r) => {
-      const bandStyle = cloneStyle(ws.getCell(r, 1));
-      for (let c = 3; c <= 7; c++) {
-        ws.getCell(r, c).style = JSON.parse(JSON.stringify(bandStyle));
-      }
-    });
-
-    let dataStyleTemplate = null;
-    if (fundRows.length) dataStyleTemplate = cloneStyle(ws.getCell(fundRows[0], 1));
-
-    let nonCoteCount = 0;
-
-    fundRows.forEach((r) => {
-      const isinRaw = ws.getCell(r, 2).value;
-      const isin = typeof isinRaw === "string" ? isinRaw.trim() : isinRaw;
-      const fund = isin ? fundsByIsin.get(isin) : null;
+    // 3) Une ligne par fonds retenu, avec les formules de calcul
+    const plainFont = { name: "Arial", size: 10 };
+    selected.forEach((item, idx) => {
+      const r = idx + 2;
+      ws.getCell(r, 1).value = item.nom;
+      ws.getCell(r, 2).value = item.isin;
+      [1, 2].forEach((c) => { ws.getCell(r, c).font = plainFont; ws.getCell(r, c).alignment = { vertical: "middle" }; });
 
       const dateCell = ws.getCell(r, 3);
-      dateCell.style = dataStyleTemplate ? JSON.parse(JSON.stringify(dataStyleTemplate)) : {};
       dateCell.numFmt = "dd/mm/yyyy";
-
-      if (!fund) {
-        for (let c = 4; c <= 7; c++) {
-          const c2 = ws.getCell(r, c);
-          c2.value = "—";
-          c2.style = dataStyleTemplate ? JSON.parse(JSON.stringify(dataStyleTemplate)) : {};
-          c2.alignment = { horizontal: "center" };
-        }
-        return;
-      }
-
-      nonCoteCount++;
+      dateCell.font = plainFont;
       dateCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: YELLOW_ARGB } };
       ws.getRow(r).height = 60;
 
-      const b = `TRIM($B${r})`;
+      const b = `"${item.isin}"`;
       const c = `$C${r}`;
 
       const H = helperCol("has_entree"), I = helperCol("next_cutoff_entree"), J = helperCol("next_val_entree"), K = helperCol("max_cutoff_entree");
@@ -371,11 +355,13 @@
       );
 
       for (let c2 = 4; c2 <= 7; c2++) {
-        ws.getCell(r, c2).alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+        const cell = ws.getCell(r, c2);
+        cell.font = plainFont;
+        cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
       }
     });
 
-    return { ws, nonCoteCount, fundRowsCount: fundRows.length, categoryRowsCount: categoryRows.length };
+    return { ws, selectedCount: selected.length, fundRowsScanned: fundRows.length };
   }
 
   function setF(ws, addr, formula) {
@@ -417,7 +403,7 @@
     const wsCal = writeBddCalendrier(workbook, CALENDAR);
     const wsPen = writeBddPenalites(workbook, FUNDS);
 
-    const { ws: exitWs, nonCoteCount, fundRowsCount, categoryRowsCount } =
+    const { ws: exitWs, selectedCount, fundRowsScanned } =
       buildExitSheet(workbook, srcWs, headerRow, wsCal.rowCount, wsPen.rowCount, fundsByIsin);
 
     // Ordre des feuilles : Consolidation, Calendrier de sortie, puis le reste tel quel.
@@ -434,7 +420,7 @@
     const buffer = await workbook.xlsx.writeBuffer();
     return {
       buffer,
-      stats: { nonCoteCount, fundRowsCount, categoryRowsCount, headerRow },
+      stats: { selectedCount, fundRowsScanned, headerRow },
     };
   }
 

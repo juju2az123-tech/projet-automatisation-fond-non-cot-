@@ -24,22 +24,28 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
 
 1. Glisser-déposer (ou cliquer pour parcourir) le fichier Excel de consolidation du client.
 2. Le traitement est automatique : une feuille **« Calendrier de sortie »** est ajoutée juste
-   après la feuille « Consolidation », avec les mêmes lignes de fonds et la même mise en forme.
-   Seules les colonnes « Contrat n / TOTAL / Risque / SRI / VL / Mouvements » sont remplacées par
-   les 5 colonnes utiles : `Date d'investissement` (à saisir), `Prochain ordre — entrée`,
-   `Prochain ordre — sortie`, `Prochaine réception du cash`, `Pénalité de sortie`.
+   après la feuille « Consolidation ». C'est un tableau **compact** listant uniquement les fonds
+   que ce client **détient réellement** (montant total non nul dans sa consolidation) **et** pour
+   lesquels un **calendrier de sortie officiel est connu** dans la base Althos — pas la liste
+   complète des fonds de la consolidation, pas les fonds cotés, pas les fonds non détenus. Pour
+   chaque fonds retenu : `Fonds`, `ISIN`, `Date d'investissement` (à saisir), `Prochain ordre —
+   entrée`, `Prochain ordre — sortie`, `Prochaine réception du cash`, `Pénalité de sortie`. Si
+   aucun fonds détenu n'a de calendrier connu, la feuille l'indique clairement au lieu d'un
+   tableau vide.
 3. Le fichier complété se télécharge automatiquement (`nomdufichier - avec calendrier de sortie.xlsx`).
    Un bouton permet de le retélécharger si besoin.
-4. Ouvrir le fichier téléchargé, saisir la date d'investissement pour chaque fonds non coté
-   détenu par le client : les colonnes se recalculent automatiquement (formules Excel).
+4. Ouvrir le fichier téléchargé, saisir la date d'investissement pour chaque fonds listé : les
+   4 dernières colonnes se recalculent automatiquement (formules Excel).
 
-**Comment ça détecte les lignes ?** Aucune structure de fichier n'est supposée fixe : l'outil
-repère la feuille via son en-tête (« Support » en colonne A), puis distingue les lignes de
-catégorie (bandeau en gras/coloré) des lignes de fonds, et reconnaît un fonds non coté par son
-ISIN (comparé à la base Althos) — peu importe le nombre de contrats, l'ordre des fonds ou le
-nombre de lignes du fichier déposé. Les fonds cotés (Actions, Fonds prudents…) ou non reconnus
-affichent simplement « — ». Testé avec succès sur deux fichiers de consolidation clients réels
-aux structures différentes (17 vs 9 contrats, 483 vs 294 lignes).
+**Comment ça détecte les fonds à retenir ?** Aucune structure de fichier n'est supposée fixe :
+l'outil repère la feuille via son en-tête (« Support » en colonne A), la colonne « TOTAL » (montant
+détenu, tous contrats confondus), puis distingue les lignes de catégorie (bandeau en gras/coloré)
+des lignes de fonds. Un fonds est retenu si son ISIN correspond à un fonds pour lequel un calendrier
+de sortie existe dans la base Althos **et** que son montant total détenu est non nul — peu importe
+le nombre de contrats, l'ordre des fonds ou le nombre de lignes du fichier déposé. Testé avec succès
+sur deux fichiers de consolidation clients réels aux structures différentes (17 vs 9 contrats, 483
+vs 294 lignes) : 8 fonds retenus sur l'un (102 fonds non cotés présents dans le fichier, dont
+seulement 8 à la fois détenus et dotés d'un calendrier), 5 sur l'autre.
 
 ### Comment ça marche techniquement
 
@@ -162,26 +168,29 @@ l'utilisateur, recalculée à chaque ouverture — jamais figée). Si le calendr
 couvre plus la période courante (ex. calendrier 2025 non encore renouvelé pour 2026), un
 message invite à demander le calendrier à jour plutôt que d'afficher une date erronée.
 
-## Utilisation (classeur Excel du conseiller)
+## Utilisation (classeur Excel du conseiller — équivalent en ligne de commande)
 
 Le conseiller travaille normalement dans son classeur de consolidation habituel (ex.
 `ConsolidationTemplateAlthosAI_V5.xlsx`, feuille `Consolidation` : un fonds par ligne, un
-contrat par colonne, avec les montants investis). `scripts/build_client_workbook.py` prend ce
-classeur et lui ajoute une nouvelle feuille **« Calendrier de sortie »**, positionnée juste après
-`Consolidation`, avec **exactement la même mise en forme** (mêmes lignes de fonds, mêmes
-catégories, mêmes couleurs) — seules les colonnes changent :
+contrat par colonne, avec les montants investis, et une colonne `TOTAL`). `scripts/build_client_workbook.py`
+prend ce classeur et lui ajoute une nouvelle feuille **« Calendrier de sortie »**, positionnée
+juste après `Consolidation` — même logique que `ajout-calendrier-sortie.html` (voir plus haut) :
+un tableau **compact**, listant uniquement les fonds que ce client **détient réellement**
+(colonne `TOTAL` non nulle) **et** pour lesquels un **calendrier de sortie est connu**. Ni les
+fonds cotés, ni les fonds non détenus, ni les fonds non cotés sans calendrier n'apparaissent —
+ce n'est pas une copie de la feuille `Consolidation`.
 
 | Colonne | Contenu |
 |---|---|
-| Support / ISIN & DIC | Identiques à la feuille Consolidation (copiées telles quelles) |
-| Date d'investissement | 🟡 à saisir par le conseiller, pour chaque fonds non coté détenu par le client |
+| Fonds / ISIN | Nom et ISIN du fonds retenu |
+| Date d'investissement | 🟡 à saisir par le conseiller |
 | Prochain ordre — entrée | Cut-off + date de valorisation (VL) de la prochaine fenêtre de souscription |
 | Prochain ordre — sortie | Cut-off + date de valorisation (VL) de la prochaine fenêtre de rachat |
 | Prochaine réception du cash | Date de règlement du prochain rachat |
 | Pénalité de sortie | Statut calculé (concerné / non concerné / à vérifier) à partir de la date d'investissement saisie |
 
-Pour les fonds **cotés** (Actions, Fonds prudents, monétaires, obligataires…), ces 4 colonnes
-affichent simplement « — » : le calendrier de sortie ne concerne que les fonds non cotés.
+Si aucun fonds détenu n'a de calendrier connu, la feuille l'indique clairement au lieu d'un
+tableau vide.
 
 ### Générer / régénérer la feuille
 
@@ -193,6 +202,14 @@ Sans arguments, lit `source/ConsolidationTemplateAlthosAI_V5.xlsx` et écrit
 `output/ConsolidationTemplateAlthosAI_V5_avec_calendrier.xlsx`. Pour l'utiliser sur le classeur
 réel d'un client (avec les montants déjà saisis), passer son chemin en premier argument — la
 feuille `Consolidation` du client n'est jamais modifiée, seule la nouvelle feuille est ajoutée.
+
+⚠️ **Limite connue de ce script (Python/openpyxl uniquement, n'affecte pas `ajout-calendrier-sortie.html`)** :
+openpyxl ne conserve pas les valeurs mises en cache des formules déjà présentes dans la feuille
+`Consolidation` (ex. les totaux). Les formules elles-mêmes restent intactes et correctes ;
+Excel les recalcule simplement à l'ouverture du fichier (comportement normal, pas une perte de
+données) — mais le fichier peut afficher des cellules vides une fraction de seconde avant ce
+recalcul automatique. Si ce détail gêne, préférez `ajout-calendrier-sortie.html`, qui conserve
+les valeurs calculées intactes.
 
 ### Comment ça marche (toutes les colonnes calculées sont des formules Excel)
 

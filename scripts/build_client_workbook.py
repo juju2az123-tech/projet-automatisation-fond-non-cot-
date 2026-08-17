@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
 Ajoute au classeur de consolidation client (ex : source/ConsolidationTemplateAlthosAI_V5.xlsx)
-une nouvelle feuille "Calendrier de sortie", clonée de la feuille "Consolidation" (même
-présentation : mêmes lignes de fonds, mêmes catégories, mêmes styles), dans laquelle les
-colonnes "Contrat n" / TOTAL / Risque / SRI / VL / Mouvements sont remplacées par 5 colonnes :
+une nouvelle feuille "Calendrier de sortie" — un tableau COMPACT listant uniquement les fonds
+que le client détient réellement (montant total non nul dans sa consolidation) ET pour lesquels
+un calendrier de sortie officiel est connu dans la base Althos. Ni les fonds cotés, ni les fonds
+non détenus, ni les fonds non cotés sans calendrier n'apparaissent : ce n'est pas une copie de la
+feuille "Consolidation", juste la liste utile pour répondre à un client qui demande ses délais
+de sortie. Pour chaque fonds retenu, 5 colonnes :
 
   - Date d'investissement (à saisir par le conseiller)
   - Prochain ordre — entrée
@@ -28,7 +31,7 @@ from copy import copy
 from pathlib import Path
 
 import openpyxl
-from openpyxl.styles import PatternFill
+from openpyxl.styles import PatternFill, Alignment, Font
 from openpyxl.utils import get_column_letter
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -37,31 +40,56 @@ from build_data import load_suivi, merge_extra_from_calendriers_par_fonds, load_
 
 CAL_FILE = ROOT / "source" / "Calendriers_de_fonds_Althos.xlsx"
 
-NON_COTE_ROW_MIN = 100  # 1ère ligne de fonds de la section "Hedge Fund"
-NON_COTE_ROW_MAX = 310  # dernière ligne de fonds de la section "Private Equity"
-FUND_ROW_FIRST = 8
-FUND_ROW_LAST = 460
-
 YELLOW = PatternFill(start_color="FFFFF2A6", end_color="FFFFF2A6", fill_type="solid")
+PLAIN_FONT = Font(name="Arial", size=10)
 
 
 # ---------------------------------------------------------------------------
-# Row classification (reuses the same visual convention as the source sheet:
-# a "category" row is solid-filled with no ISIN in column B).
+# Détection dynamique de la structure de la feuille "Consolidation" (aucun
+# numéro de ligne/colonne n'est supposé fixe, pour s'adapter à un fichier
+# client réel dont la mise en page peut différer du template).
 # ---------------------------------------------------------------------------
 
-def classify_rows(ws):
-    cat_rows, fund_rows, blank_rows = [], [], []
-    for r in range(FUND_ROW_FIRST, FUND_ROW_LAST + 1):
+def find_header_row(ws):
+    for r in range(1, 16):
+        if (ws.cell(row=r, column=1).value or "").strip() == "Support":
+            return r
+    return None
+
+
+def find_total_column(ws, header_row):
+    for c in range(3, ws.max_column + 1):
+        v = ws.cell(row=header_row, column=c).value
+        if v and str(v).strip().upper() == "TOTAL":
+            return c
+    return None
+
+
+def classify_rows(ws, header_row):
+    """Une ligne de catégorie (bandeau) est en gras + fond uni, sans ISIN en colonne B."""
+    cat_rows, fund_rows = [], []
+    for r in range(header_row + 2, ws.max_row + 1):  # header_row+1 = ligne de total général
         a = ws.cell(row=r, column=1)
         b = ws.cell(row=r, column=2)
         if a.value is None:
-            blank_rows.append(r)
-        elif a.fill.patternType == "solid" and b.value is None:
+            continue
+        if a.fill.patternType == "solid" and (a.font.bold or False) and b.value is None:
             cat_rows.append(r)
         else:
             fund_rows.append(r)
-    return cat_rows, fund_rows, blank_rows
+    return cat_rows, fund_rows
+
+
+def holding_amount(ws, row, total_col):
+    """Somme des colonnes 'Contrat' (3..total_col-1) ; None si aucune colonne TOTAL trouvée."""
+    if not total_col:
+        return None
+    total = 0
+    for c in range(3, total_col):
+        v = ws.cell(row=row, column=c).value
+        if isinstance(v, (int, float)):
+            total += v
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -176,91 +204,73 @@ def helper_col(name):
     return get_column_letter(idx)
 
 
-def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row):
+def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row, funds_by_isin):
     def cal(col):
         return f"BDD_Calendrier!${col}$2:${col}${cal_last_row}"
 
     def pen(col):
         return f"BDD_Penalites!${col}$2:${col}${pen_last_row}"
 
-    ws = wb.copy_worksheet(src_ws)
-    ws.title = "Calendrier de sortie"
-
-    # Move it right after "Consolidation"
+    ws = wb.create_sheet("Calendrier de sortie")
     wb._sheets.remove(ws)
-    wb._sheets.insert(wb._sheets.index(src_ws) + 1, ws)
+    wb._sheets.insert(wb._sheets.index(src_ws) + 1, ws)  # right after "Consolidation"
 
-    header_style_source = copy(ws["B6"]._style)  # navy header style (theme1, bold, white)
-    data_style_template = copy(ws["B101"]._style)  # plain fund-row style (left align, no fill)
+    header_row = find_header_row(src_ws)
+    if header_row is None:
+        raise ValueError('En-tête "Support" introuvable dans les 15 premières lignes de la feuille Consolidation.')
+    total_col = find_total_column(src_ws, header_row)
+    _, fund_rows = classify_rows(src_ws, header_row)
 
-    # Remove the old "Contrat.../TOTAL/Risque/SRI/VL/Mouvements" block. openpyxl's
-    # delete_cols() does not adjust merged-cell metadata (and errors out later if a
-    # stale merge still references a cell it removed), so unmerge everything that
-    # overlaps C:AA — including the footnote merge — before deleting the columns.
-    for rng in ("T6:U6", "X6:X7", "Z6:AA7", "A461:D461"):
-        ws.unmerge_cells(rng)
-    ws.delete_cols(3, 25)  # C..AA (25 columns)
+    selected = []
+    for r in fund_rows:
+        isin_raw = src_ws.cell(row=r, column=2).value
+        isin = isin_raw.strip() if isinstance(isin_raw, str) else isin_raw
+        fund = funds_by_isin.get(isin) if isin else None
+        if not fund or not fund.get("hasCalendar"):
+            continue
+        amount = holding_amount(src_ws, r, total_col)
+        if amount is not None and abs(amount) <= 0.005:
+            continue
+        selected.append((isin, src_ws.cell(row=r, column=1).value or fund["nom"]))
 
-    headers = [
-        "Date d'investissement",
-        "Prochain ordre — entrée",
-        "Prochain ordre — sortie",
-        "Prochaine réception du cash",
-        "Pénalité de sortie",
-    ]
+    header_style = copy(src_ws.cell(row=header_row, column=1)._style)  # navy header (theme1)
+    headers = ["Fonds", "ISIN", "Date d'investissement",
+               "Prochain ordre — entrée", "Prochain ordre — sortie",
+               "Prochaine réception du cash", "Pénalité de sortie"]
     for i, label in enumerate(headers):
-        col = 3 + i  # C..G
-        cell = ws.cell(row=6, column=col, value=label)
-        cell._style = copy(header_style_source)
-        cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center", wrap_text=True)
-    ws.row_dimensions[6].height = 42
+        cell = ws.cell(row=1, column=i + 1, value=label)
+        cell._style = copy(header_style)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[1].height = 30
 
-    widths = [16, 32, 32, 30, 46]
+    widths = [34, 14, 16, 32, 32, 30, 46]
     for i, w in enumerate(widths):
-        ws.column_dimensions[get_column_letter(3 + i)].width = w
+        ws.column_dimensions[get_column_letter(i + 1)].width = w
 
-    # Hide helper columns
     for name in HELPER_NAMES:
         ws.column_dimensions[helper_col(name)].hidden = True
 
-    # Footnote row (previously A461:D461, already unmerged above) -> widen, refresh wording
-    ws["A461"] = ("Colonnes calculées automatiquement à l'ouverture du fichier, à partir des "
-                  "calendriers officiels et pénalités de sortie Althos. À vérifier contre le "
-                  "PDF / DICI du fonds avant toute réponse engageante au client.")
-    ws.merge_cells("A461:G461")
-    for r in range(462, 468):
-        for c in range(1, 3):
-            ws.cell(row=r, column=c).value = None
+    if not selected:
+        msg = ("Aucun fonds avec calendrier de sortie connu n'est actuellement détenu par ce "
+               'client (montant total nul, ou fonds hors périmètre "fonds non cotés suivis").')
+        ws.cell(row=2, column=1, value=msg)
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
+        ws.cell(row=2, column=1).alignment = Alignment(wrap_text=True, vertical="center")
+        ws.row_dimensions[2].height = 30
+        return ws, 0, len(fund_rows)
 
-    cat_rows, fund_rows, _ = classify_rows(ws)
+    for idx, (isin, nom) in enumerate(selected):
+        r = idx + 2
+        ws.cell(row=r, column=1, value=nom).font = PLAIN_FONT
+        ws.cell(row=r, column=2, value=isin).font = PLAIN_FONT
 
-    # Re-apply full-row category banding across the new columns C..G
-    for r in cat_rows:
-        band_style = copy(ws.cell(row=r, column=1)._style)
-        for col in range(3, 8):
-            cell = ws.cell(row=r, column=col)
-            cell._style = band_style
-
-    for r in fund_rows:
-        is_non_cote = NON_COTE_ROW_MIN <= r <= NON_COTE_ROW_MAX
         date_cell = ws.cell(row=r, column=3)
-        date_cell._style = copy(data_style_template)
         date_cell.number_format = "dd/mm/yyyy"
-
-        if not is_non_cote:
-            date_cell.fill = PatternFill(fill_type=None)
-            for col in range(4, 8):
-                c = ws.cell(row=r, column=col, value="—")
-                c._style = copy(data_style_template)
-                c.alignment = openpyxl.styles.Alignment(horizontal="center")
-            continue
-
+        date_cell.font = PLAIN_FONT
         date_cell.fill = YELLOW
         ws.row_dimensions[r].height = 60  # room for the wrapped multi-line status text
-        # TRIM() guards against stray trailing spaces on ISINs in the source template
-        # (confirmed present on a few rows, e.g. "FR0013186772 ") that would otherwise
-        # silently break the exact-match lookups against BDD_Calendrier/BDD_Penalites.
-        b = f"TRIM($B{r})"
+
+        b = f'"{isin}"'
         c = f"$C{r}"
 
         H, I, J, K = helper_col("has_entree"), helper_col("next_cutoff_entree"), helper_col("next_val_entree"), helper_col("max_cutoff_entree")
@@ -330,9 +340,11 @@ def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row):
             f'TRUE,"Non concerné (détention "&{Q}{r}&" mois). "&{Tc}{r})'
         )
         for col in range(4, 8):
-            ws.cell(row=r, column=col).alignment = openpyxl.styles.Alignment(horizontal="left", vertical="center", wrap_text=True)
+            cell = ws.cell(row=r, column=col)
+            cell.font = PLAIN_FONT
+            cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-    return ws
+    return ws, len(selected), len(fund_rows)
 
 
 def main():
@@ -344,17 +356,20 @@ def main():
     funds = load_suivi(wb_cal)
     funds = merge_extra_from_calendriers_par_fonds(wb_cal, funds)
     calendar = load_calendrier(wb_cal)
+    for f in funds.values():
+        f["hasCalendar"] = bool(f["isin"] and f["isin"] in calendar)
+    funds_by_isin = {f["isin"]: f for f in funds.values() if f["isin"]}
 
     wb = openpyxl.load_workbook(src_path, data_only=False)
     src_ws = wb["Consolidation"]
 
     ws_cal = write_bdd_calendrier(wb, calendar)
     ws_pen = write_bdd_penalites(wb, funds)
-    build_exit_sheet(wb, src_ws, ws_cal.max_row, ws_pen.max_row)
+    _, selected_count, fund_rows_count = build_exit_sheet(wb, src_ws, ws_cal.max_row, ws_pen.max_row, funds_by_isin)
 
     wb.active = wb.sheetnames.index("Calendrier de sortie")
     wb.save(out_path)
-    print(f"OK -> {out_path}")
+    print(f"OK -> {out_path} ({selected_count} fonds retenus sur {fund_rows_count} lignes analysées)")
 
 
 if __name__ == "__main__":

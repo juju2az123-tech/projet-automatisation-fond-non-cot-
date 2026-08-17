@@ -240,11 +240,13 @@
       pendingFilename = outputFilename(file.name);
 
       const s = result.stats;
+      const summary = s.selectedCount
+        ? '<li>' + s.selectedCount + ' fonds non coté(s) détenu(s) par ce client avec un calendrier de sortie connu — listés dans la nouvelle feuille.</li>'
+        : '<li>Aucun fonds détenu par ce client n\'a de calendrier de sortie connu dans la base — la feuille le précise.</li>';
       setStatus("ok",
         '<div class="line1">✓ Feuille « Calendrier de sortie » générée</div>' +
-        '<ul>' +
-        '<li>' + s.fundRowsCount + ' ligne(s) de fonds traitée(s), dont ' + s.nonCoteCount + ' fonds non cotés reconnus (calendrier/pénalité calculés).</li>' +
-        '<li>Les autres lignes (fonds cotés ou non reconnus) affichent « — ».</li>' +
+        '<ul>' + summary +
+        '<li>' + s.fundRowsScanned + ' ligne(s) de fonds analysée(s) dans la consolidation d\'origine.</li>' +
         '</ul>'
       );
       downloadArea.style.display = "block";
