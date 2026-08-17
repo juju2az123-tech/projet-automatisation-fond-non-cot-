@@ -195,6 +195,92 @@ def load_calendrier(wb):
     return calendar
 
 
+MOIS_RE = re.compile(
+    r"^(Janvier|F[ée]vrier|Mars|Avril|Mai|Juin|Juillet|Ao[uû]t|Septembre|Octobre|Novembre|D[ée]cembre)"
+    r"\s+\d{4}$"
+)
+
+
+def load_calendrier_par_fonds(wb):
+    """
+    La feuille "Calendriers par fonds" liste tout l'univers de fonds (comme "Fonds"), et pour
+    certains d'entre eux seulement, insère juste en dessous un mini-tableau calendrier (ligne
+    d'en-tête "Mois", puis une ligne par mois : cut-off / VL / exécution / publication / cash,
+    pour la souscription ET le rachat côte à côte). Ce sont "les lignes du dessous" : pour
+    certains fonds (ex. Schroder Semi Liquid GPE), c'est l'UNIQUE source de calendrier — ils
+    n'apparaissent pas du tout dans la feuille "Calendriers" à plat.
+    """
+    ws = wb["Calendriers par fonds"]
+    max_row = ws.max_row
+    calendar = {}
+
+    for r in range(2, max_row + 1):
+        if ws.cell(row=r, column=1).value != "Mois":
+            continue
+        # Le fonds concerné est la ligne non vide la plus proche au-dessus (ISIN en colonne A).
+        isin = None
+        for r2 in range(r - 1, max(r - 8, 0), -1):
+            v = ws.cell(row=r2, column=1).value
+            if v:
+                isin = v
+                break
+        if not isin or not re.match(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$|^[A-Z0-9]{6,15}$", str(isin)):
+            continue
+
+        r2 = r + 1
+        while r2 <= max_row:
+            periode = ws.cell(row=r2, column=1).value
+            if not periode or not MOIS_RE.match(str(periode).strip()):
+                break
+            vals = [ws.cell(row=r2, column=c).value for c in range(2, 12)]
+            (sous_cutoff, sous_val, sous_exec, sous_pub, sous_cash,
+             rac_cutoff, rac_val, rac_exec, rac_pub, rac_cash) = vals
+
+            # Repli sur la date d'exécution quand la VL n'est pas publiée séparément dans ce
+            # tableau, pour ne jamais afficher une date de valorisation vide (=> "00/01/1900"
+            # une fois passée dans TEXT() côté formule Excel).
+            if sous_cutoff or sous_exec:
+                calendar.setdefault(isin, {}).setdefault("Souscription", []).append({
+                    "periode": periode,
+                    "cutoff": iso(sous_cutoff), "valorisation": iso(sous_val or sous_exec),
+                    "execution": iso(sous_exec), "publicationVL": iso(sous_pub),
+                    "reglementCash": iso(sous_cash), "statut": "Calendriers par fonds",
+                })
+            if rac_cutoff or rac_exec:
+                calendar.setdefault(isin, {}).setdefault("Rachat", []).append({
+                    "periode": periode,
+                    "cutoff": iso(rac_cutoff), "valorisation": iso(rac_val or rac_exec),
+                    "execution": iso(rac_exec), "publicationVL": iso(rac_pub),
+                    "reglementCash": iso(rac_cash), "statut": "Calendriers par fonds",
+                })
+            r2 += 1
+
+    return calendar
+
+
+def merge_calendriers(primary, extra):
+    """Fusionne `extra` dans `primary`, sans dupliquer une échéance déjà connue (même couple
+    isin/type/cutoff). `primary` (feuille "Calendriers", entretenue à la main) reste la source
+    de vérité en cas de chevauchement ; `extra` ne fait que combler les trous — nouveaux fonds
+    (ex. Schroder Semi Liquid GPE) ou mois absents de `primary` pour un fonds déjà connu."""
+    for isin, by_type in extra.items():
+        for type_, entries in by_type.items():
+            existing = primary.setdefault(isin, {}).setdefault(type_, [])
+            known_cutoffs = {e["cutoff"] for e in existing}
+            for e in entries:
+                if e["cutoff"] not in known_cutoffs:
+                    existing.append(e)
+                    known_cutoffs.add(e["cutoff"])
+
+    def sort_key(e):
+        return e["execution"] or e["cutoff"] or e["valorisation"] or "9999-99-99"
+
+    for isin, by_type in primary.items():
+        for type_, entries in by_type.items():
+            entries.sort(key=sort_key)
+    return primary
+
+
 # ---------------------------------------------------------------------------
 # 5) Feuille "Fonds" de la Bibliothèque → attributs complémentaires (devise,
 #    SRI, frais, liquidité, temporalité, lien DICI) rattachés par ISIN.
@@ -229,6 +315,7 @@ def main():
     funds = load_suivi(wb_cal)
     funds = merge_extra_from_calendriers_par_fonds(wb_cal, funds)
     calendar = load_calendrier(wb_cal)
+    calendar = merge_calendriers(calendar, load_calendrier_par_fonds(wb_cal))
     bib_attrs = load_bibliotheque(wb_bib)
 
     fund_list = []

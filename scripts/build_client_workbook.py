@@ -36,7 +36,10 @@ from openpyxl.utils import get_column_letter
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_data import load_suivi, merge_extra_from_calendriers_par_fonds, load_calendrier  # noqa: E402
+from build_data import (  # noqa: E402
+    load_suivi, merge_extra_from_calendriers_par_fonds, load_calendrier,
+    load_calendrier_par_fonds, merge_calendriers,
+)
 
 CAL_FILE = ROOT / "source" / "Calendriers_de_fonds_Althos.xlsx"
 
@@ -356,6 +359,7 @@ def main():
     funds = load_suivi(wb_cal)
     funds = merge_extra_from_calendriers_par_fonds(wb_cal, funds)
     calendar = load_calendrier(wb_cal)
+    calendar = merge_calendriers(calendar, load_calendrier_par_fonds(wb_cal))
     for f in funds.values():
         f["hasCalendar"] = bool(f["isin"] and f["isin"] in calendar)
     funds_by_isin = {f["isin"]: f for f in funds.values() if f["isin"]}

@@ -135,9 +135,15 @@ localement via `ajout-calendrier-sortie.html`, qui ne transmet rien en dehors du
   ex. Antheor).
 - **Calendrier mensuel (cut-off, VL, exécution, publication VL, règlement/réception cash)** :
   feuille `Calendriers` du classeur Calendriers — une ligne par fonds / année / type
-  (Souscription ou Rachat) / mois. Seuls les fonds ayant un calendrier officiel déposé y
-  figurent (37 fonds au moment de la première génération, sur 144 fonds non cotés suivis) ;
-  pour les autres, l'outil affiche « Calendrier non disponible ».
+  (Souscription ou Rachat) / mois. **Complété par les mini-tableaux calendrier insérés sous
+  certains fonds dans la feuille `Calendriers par fonds`** (ligne d'en-tête « Mois » suivie des
+  échéances) : c'est parfois la SEULE source de calendrier pour un fonds (ex. Schroder Semi
+  Liquid GPE, absent de la feuille `Calendriers` à plat) — voir `load_calendrier_par_fonds()` et
+  `merge_calendriers()` dans `scripts/build_data.py`. En cas de chevauchement, la feuille
+  `Calendriers` (entretenue à la main) reste prioritaire ; le second tableau ne comble que les
+  trous (nouveaux fonds, mois manquants). 38 fonds couverts au total au moment de cette mise à
+  jour (sur 144 fonds non cotés suivis) ; pour les autres, l'outil affiche « Calendrier non
+  disponible ».
 - **Devise, SRI, frais, liquidité, temporalité, lien DICI** : feuille `Fonds` du classeur
   Bibliothèque de fonds, rattachée par ISIN.
 
