@@ -176,7 +176,13 @@ def helper_col(name):
     return get_column_letter(idx)
 
 
-def build_exit_sheet(wb, src_ws):
+def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row):
+    def cal(col):
+        return f"BDD_Calendrier!${col}$2:${col}${cal_last_row}"
+
+    def pen(col):
+        return f"BDD_Penalites!${col}$2:${col}${pen_last_row}"
+
     ws = wb.copy_worksheet(src_ws)
     ws.title = "Calendrier de sortie"
 
@@ -264,37 +270,37 @@ def build_exit_sheet(wb, src_ws):
                                                   helper_col("max4"), helper_col("rate4"), helper_col("rate5"))
         AD1 = helper_col("rate_now")
 
-        ws[f"{H}{r}"] = f'=COUNTIFS(BDD_Calendrier!$A:$A,{b},BDD_Calendrier!$C:$C,"Souscription")'
-        ws[f"{I}{r}"] = (f'=IF({H}{r}=0,"",IFERROR(_xlfn.MINIFS(BDD_Calendrier!$D:$D,'
-                          f'BDD_Calendrier!$A:$A,{b},BDD_Calendrier!$C:$C,"Souscription",'
-                          f'BDD_Calendrier!$D:$D,">="&TODAY()),""))')
-        ws[f"{J}{r}"] = (f'=IF({I}{r}="","",IFERROR(INDEX(BDD_Calendrier!$E:$E,'
-                          f'MATCH({b}&"|Souscription|"&TEXT({I}{r},"yyyy-mm-dd"),BDD_Calendrier!$I:$I,0)),""))')
-        ws[f"{K}{r}"] = f'=IF({H}{r}=0,"",_xlfn.MAXIFS(BDD_Calendrier!$D:$D,BDD_Calendrier!$A:$A,{b},BDD_Calendrier!$C:$C,"Souscription"))'
+        ws[f"{H}{r}"] = f'=COUNTIFS({cal("A")},{b},{cal("C")},"Souscription")'
+        ws[f"{I}{r}"] = (f'=IF({H}{r}=0,"",IFERROR(_xlfn.MINIFS({cal("D")},'
+                          f'{cal("A")},{b},{cal("C")},"Souscription",'
+                          f'{cal("D")},">="&TODAY()),""))')
+        ws[f"{J}{r}"] = (f'=IF({I}{r}="","",IFERROR(INDEX({cal("E")},'
+                          f'MATCH({b}&"|Souscription|"&TEXT({I}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
+        ws[f"{K}{r}"] = f'=IF({H}{r}=0,"",_xlfn.MAXIFS({cal("D")},{cal("A")},{b},{cal("C")},"Souscription"))'
 
-        ws[f"{L}{r}"] = f'=COUNTIFS(BDD_Calendrier!$A:$A,{b},BDD_Calendrier!$C:$C,"Rachat")'
-        ws[f"{M}{r}"] = (f'=IF({L}{r}=0,"",IFERROR(_xlfn.MINIFS(BDD_Calendrier!$D:$D,'
-                          f'BDD_Calendrier!$A:$A,{b},BDD_Calendrier!$C:$C,"Rachat",'
-                          f'BDD_Calendrier!$D:$D,">="&TODAY()),""))')
-        ws[f"{N}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX(BDD_Calendrier!$E:$E,'
-                          f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),BDD_Calendrier!$I:$I,0)),""))')
-        ws[f"{O}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX(BDD_Calendrier!$H:$H,'
-                          f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),BDD_Calendrier!$I:$I,0)),""))')
-        ws[f"{P}{r}"] = f'=IF({L}{r}=0,"",_xlfn.MAXIFS(BDD_Calendrier!$D:$D,BDD_Calendrier!$A:$A,{b},BDD_Calendrier!$C:$C,"Rachat"))'
+        ws[f"{L}{r}"] = f'=COUNTIFS({cal("A")},{b},{cal("C")},"Rachat")'
+        ws[f"{M}{r}"] = (f'=IF({L}{r}=0,"",IFERROR(_xlfn.MINIFS({cal("D")},'
+                          f'{cal("A")},{b},{cal("C")},"Rachat",'
+                          f'{cal("D")},">="&TODAY()),""))')
+        ws[f"{N}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX({cal("E")},'
+                          f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
+        ws[f"{O}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX({cal("H")},'
+                          f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
+        ws[f"{P}{r}"] = f'=IF({L}{r}=0,"",_xlfn.MAXIFS({cal("D")},{cal("A")},{b},{cal("C")},"Rachat"))'
 
         ws[f"{Q}{r}"] = f'=IF({c}="","",IF({c}>TODAY(),"FUTUR",DATEDIF({c},TODAY(),"m")))'
-        ws[f"{R}{r}"] = f'=COUNTIF(BDD_Penalites!$A:$A,{b})'
-        ws[f"{S}{r}"] = f'=IF({R}{r}=0,"inconnue",INDEX(BDD_Penalites!$C:$C,MATCH({b},BDD_Penalites!$A:$A,0)))'
-        ws[f"{Tc}{r}"] = f'=IF({R}{r}=0,"",INDEX(BDD_Penalites!$M:$M,MATCH({b},BDD_Penalites!$A:$A,0)))'
-        ws[f"{U1}{r}"] = f'=IF({R}{r}=0,0,INDEX(BDD_Penalites!$D:$D,MATCH({b},BDD_Penalites!$A:$A,0)))'
-        ws[f"{V1}{r}"] = f'=IF({R}{r}=0,0,INDEX(BDD_Penalites!$E:$E,MATCH({b},BDD_Penalites!$A:$A,0)))'
-        ws[f"{W1}{r}"] = f'=IF({R}{r}=0,0,INDEX(BDD_Penalites!$F:$F,MATCH({b},BDD_Penalites!$A:$A,0)))'
-        ws[f"{X1}{r}"] = f'=IF({R}{r}=0,0,INDEX(BDD_Penalites!$G:$G,MATCH({b},BDD_Penalites!$A:$A,0)))'
-        ws[f"{Y1}{r}"] = f'=IF({R}{r}=0,0,INDEX(BDD_Penalites!$H:$H,MATCH({b},BDD_Penalites!$A:$A,0)))'
-        ws[f"{Z1}{r}"] = f'=IF({R}{r}=0,0,INDEX(BDD_Penalites!$I:$I,MATCH({b},BDD_Penalites!$A:$A,0)))'
-        ws[f"{AA1}{r}"] = f'=IF({R}{r}=0,0,INDEX(BDD_Penalites!$J:$J,MATCH({b},BDD_Penalites!$A:$A,0)))'
-        ws[f"{AB1}{r}"] = f'=IF({R}{r}=0,0,INDEX(BDD_Penalites!$K:$K,MATCH({b},BDD_Penalites!$A:$A,0)))'
-        ws[f"{AC1}{r}"] = f'=IF({R}{r}=0,0,INDEX(BDD_Penalites!$L:$L,MATCH({b},BDD_Penalites!$A:$A,0)))'
+        ws[f"{R}{r}"] = f'=COUNTIF({pen("A")},{b})'
+        ws[f"{S}{r}"] = f'=IF({R}{r}=0,"inconnue",INDEX({pen("C")},MATCH({b},{pen("A")},0)))'
+        ws[f"{Tc}{r}"] = f'=IF({R}{r}=0,"",INDEX({pen("M")},MATCH({b},{pen("A")},0)))'
+        ws[f"{U1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("D")},MATCH({b},{pen("A")},0)))'
+        ws[f"{V1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("E")},MATCH({b},{pen("A")},0)))'
+        ws[f"{W1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("F")},MATCH({b},{pen("A")},0)))'
+        ws[f"{X1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("G")},MATCH({b},{pen("A")},0)))'
+        ws[f"{Y1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("H")},MATCH({b},{pen("A")},0)))'
+        ws[f"{Z1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("I")},MATCH({b},{pen("A")},0)))'
+        ws[f"{AA1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("J")},MATCH({b},{pen("A")},0)))'
+        ws[f"{AB1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("K")},MATCH({b},{pen("A")},0)))'
+        ws[f"{AC1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("L")},MATCH({b},{pen("A")},0)))'
         ws[f"{AD1}{r}"] = (f'=IF(OR({c}="",{Q}{r}="FUTUR"),"",_xlfn.IFS({Q}{r}<{U1}{r},{V1}{r},{Q}{r}<{W1}{r},{X1}{r},'
                             f'{Q}{r}<{Y1}{r},{Z1}{r},{Q}{r}<{AA1}{r},{AB1}{r},TRUE,{AC1}{r}))')
 
@@ -338,9 +344,9 @@ def main():
     wb = openpyxl.load_workbook(src_path, data_only=False)
     src_ws = wb["Consolidation"]
 
-    write_bdd_calendrier(wb, calendar)
-    write_bdd_penalites(wb, funds)
-    build_exit_sheet(wb, src_ws)
+    ws_cal = write_bdd_calendrier(wb, calendar)
+    ws_pen = write_bdd_penalites(wb, funds)
+    build_exit_sheet(wb, src_ws, ws_cal.max_row, ws_pen.max_row)
 
     wb.active = wb.sheetnames.index("Calendrier de sortie")
     wb.save(out_path)
