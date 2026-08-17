@@ -1,14 +1,18 @@
 # Consolidation Fonds Non Cotés — Althos
 
-Outil interne (page HTML autonome, sans backend) pour consolider les investissements d'un
-client dans des fonds non cotés et, à la demande, afficher automatiquement pour chaque ligne :
+Deux outils pour le même besoin : compléter la consolidation d'un client avec, pour chaque fonds
+non coté détenu :
 
 - la date du **prochain ordre d'entrée** (souscription) possible,
 - la date du **prochain ordre de sortie** (rachat) possible,
 - la date de la **prochaine réception du cash** suite à un rachat,
 - si le **client est concerné par une pénalité de sortie** au vu de sa date d'investissement.
 
-## Utilisation
+- **`index.html`** — outil web autonome, pour une saisie manuelle rapide fonds par fonds.
+- **`scripts/build_client_workbook.py`** — ajoute une feuille "Calendrier de sortie" directement
+  dans le classeur Excel de consolidation du conseiller (voir section dédiée plus bas).
+
+## Utilisation (page web)
 
 Ouvrir `index.html` directement dans un navigateur (double-clic, aucun serveur requis).
 
@@ -89,3 +93,59 @@ de cut-off est encore dans le futur au moment de la consultation (date du naviga
 l'utilisateur, recalculée à chaque ouverture — jamais figée). Si le calendrier connu ne
 couvre plus la période courante (ex. calendrier 2025 non encore renouvelé pour 2026), un
 message invite à demander le calendrier à jour plutôt que d'afficher une date erronée.
+
+## Utilisation (classeur Excel du conseiller)
+
+Le conseiller travaille normalement dans son classeur de consolidation habituel (ex.
+`ConsolidationTemplateAlthosAI_V5.xlsx`, feuille `Consolidation` : un fonds par ligne, un
+contrat par colonne, avec les montants investis). `scripts/build_client_workbook.py` prend ce
+classeur et lui ajoute une nouvelle feuille **« Calendrier de sortie »**, positionnée juste après
+`Consolidation`, avec **exactement la même mise en forme** (mêmes lignes de fonds, mêmes
+catégories, mêmes couleurs) — seules les colonnes changent :
+
+| Colonne | Contenu |
+|---|---|
+| Support / ISIN & DIC | Identiques à la feuille Consolidation (copiées telles quelles) |
+| Date d'investissement | 🟡 à saisir par le conseiller, pour chaque fonds non coté détenu par le client |
+| Prochain ordre — entrée | Cut-off + date de valorisation (VL) de la prochaine fenêtre de souscription |
+| Prochain ordre — sortie | Cut-off + date de valorisation (VL) de la prochaine fenêtre de rachat |
+| Prochaine réception du cash | Date de règlement du prochain rachat |
+| Pénalité de sortie | Statut calculé (concerné / non concerné / à vérifier) à partir de la date d'investissement saisie |
+
+Pour les fonds **cotés** (Actions, Fonds prudents, monétaires, obligataires…), ces 4 colonnes
+affichent simplement « — » : le calendrier de sortie ne concerne que les fonds non cotés.
+
+### Générer / régénérer la feuille
+
+```bash
+python3 scripts/build_client_workbook.py [chemin_consolidation.xlsx] [chemin_sortie.xlsx]
+```
+
+Sans arguments, lit `source/ConsolidationTemplateAlthosAI_V5.xlsx` et écrit
+`output/ConsolidationTemplateAlthosAI_V5_avec_calendrier.xlsx`. Pour l'utiliser sur le classeur
+réel d'un client (avec les montants déjà saisis), passer son chemin en premier argument — la
+feuille `Consolidation` du client n'est jamais modifiée, seule la nouvelle feuille est ajoutée.
+
+### Comment ça marche (toutes les colonnes calculées sont des formules Excel)
+
+Le script ajoute aussi deux feuilles de données masquées, alimentées par
+`Calendriers_de_fonds_Althos.xlsx` (même logique que `build_data.py`, voir plus haut) :
+
+- **`BDD_Calendrier`** : une ligne par fonds / type (Souscription ou Rachat) / échéance mensuelle.
+- **`BDD_Penalites`** : une ligne par fonds, avec la règle de pénalité réduite à au plus 4 paliers
+  "seuil en mois → taux" + un taux "au-delà" (`build_tier_columns()`), pour rester calculable par
+  une formule `IFS` en cascade sans jamais recourir à une formule matricielle (CSE).
+
+Les 5 colonnes visibles s'appuient sur des colonnes de calcul intermédiaires masquées (mois de
+détention, prochaine échéance trouvée via `MINIFS`/`MAXIFS`, palier de pénalité applicable…). Tout
+se recalcule automatiquement à l'ouverture du fichier, à la date du jour — rien n'est figé.
+
+**⚠️ Limite connue de cette tâche : le recalcul automatique n'a pas pu être vérifié dans cet
+environnement.** LibreOffice (utilisé habituellement pour valider les formules avant livraison)
+n'a pas réussi à charger le moindre fichier `.xlsx` dans ce bac à sable — y compris les fichiers
+sources originaux, jamais modifiés — ce qui pointe vers un problème d'infrastructure de la
+session, indépendant de ce script. Les formules ont donc été relues manuellement avec soin
+(cohérence des plages, parenthésage, gestion des cas vides/erreurs) plutôt que vérifiées par
+exécution réelle. **À l'ouverture du fichier dans Excel ou LibreOffice Calc chez vous, vérifiez
+qu'aucune cellule n'affiche `#NAME?`, `#REF!` ou `#VALUE!`** avant de vous fier au résultat ; le
+cas échéant, signalez-le pour correction.

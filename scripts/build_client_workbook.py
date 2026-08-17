@@ -256,7 +256,11 @@ def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row):
             continue
 
         date_cell.fill = YELLOW
-        b = f"$B{r}"
+        ws.row_dimensions[r].height = 60  # room for the wrapped multi-line status text
+        # TRIM() guards against stray trailing spaces on ISINs in the source template
+        # (confirmed present on a few rows, e.g. "FR0013186772 ") that would otherwise
+        # silently break the exact-match lookups against BDD_Calendrier/BDD_Penalites.
+        b = f"TRIM($B{r})"
         c = f"$C{r}"
 
         H, I, J, K = helper_col("has_entree"), helper_col("next_cutoff_entree"), helper_col("next_val_entree"), helper_col("max_cutoff_entree")
