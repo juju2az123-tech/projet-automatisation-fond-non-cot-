@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consolidation Fonds Non Cotés — Althos</title>
+<script src="data/funds_data.js"></script>
+<style>
+  :root{
+    --navy:#0f2a4a;
+    --navy-dark:#0a1d34;
+    --gold:#b8944f;
+    --bg:#f4f6f9;
+    --panel:#ffffff;
+    --border:#dde3ec;
+    --text:#1c2b3a;
+    --text-muted:#5b6b7d;
+    --ok-bg:#eaf6ee;
+    --ok-fg:#1c7c3c;
+    --ok-border:#bfe4cb;
+    --warn-bg:#fdf1e0;
+    --warn-fg:#9a5b00;
+    --warn-border:#f3d7a3;
+    --danger-bg:#fbe9e9;
+    --danger-fg:#a3252b;
+    --danger-border:#f1c3c5;
+    --muted-bg:#eef1f5;
+    --muted-fg:#5b6b7d;
+    --muted-border:#dbe1e9;
+    --radius:8px;
+    --shadow:0 1px 3px rgba(15,42,74,.08), 0 1px 2px rgba(15,42,74,.06);
+  }
+  @media print{
+    :root{ --shadow:none; }
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    font-size:14px;
+    line-height:1.45;
+  }
+  .wrap{max-width:1600px;margin:0 auto;padding:24px 28px 60px;}
+
+  header.app-header{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:24px;
+    background:linear-gradient(135deg,var(--navy),var(--navy-dark));
+    color:#fff;
+    padding:22px 28px;
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    margin-bottom:18px;
+  }
+  header.app-header h1{
+    margin:0 0 4px;
+    font-size:20px;
+    letter-spacing:.2px;
+  }
+  header.app-header p{
+    margin:0;
+    font-size:12.5px;
+    color:#c9d4e2;
+  }
+  .header-meta{
+    text-align:right;
+    font-size:11.5px;
+    color:#b9c6d8;
+    white-space:nowrap;
+  }
+  .header-meta strong{color:#fff;font-weight:600;}
+
+  .banner{
+    background:var(--warn-bg);
+    border:1px solid var(--warn-border);
+    color:var(--warn-fg);
+    border-radius:var(--radius);
+    padding:10px 14px;
+    font-size:12.5px;
+    margin-bottom:18px;
+  }
+  .banner b{font-weight:700;}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:16px 18px;
+    margin-bottom:18px;
+  }
+
+  .toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:12px;
+  }
+  .toolbar .grow{flex:1 1 240px;min-width:220px;}
+  .field-label{
+    display:block;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.4px;
+    color:var(--text-muted);
+    margin-bottom:4px;
+    font-weight:700;
+  }
+  input[type=text], input[type=number], input[type=date]{
+    font-family:inherit;
+    font-size:13.5px;
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    background:#fff;
+    color:var(--text);
+    width:100%;
+  }
+  input[type=text]:focus, input[type=number]:focus, input[type=date]:focus{
+    outline:2px solid #9db6d6;
+    outline-offset:1px;
+    border-color:#9db6d6;
+  }
+  .btn{
+    appearance:none;
+    border:1px solid var(--navy);
+    background:var(--navy);
+    color:#fff;
+    padding:9px 16px;
+    border-radius:6px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:background .12s, opacity .12s;
+  }
+  .btn:hover{background:var(--navy-dark);}
+  .btn.secondary{
+    background:#fff;
+    color:var(--navy);
+    border:1px solid var(--border);
+  }
+  .btn.secondary:hover{background:#eef2f7;}
+  .btn.secondary.active{
+    background:var(--navy);
+    color:#fff;
+  }
+  .btn.ghost{
+    background:transparent;
+    border:1px solid transparent;
+    color:var(--danger-fg);
+    padding:6px 8px;
+    font-weight:600;
+  }
+  .btn.ghost:hover{background:var(--danger-bg);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  .table-scroll{
+    overflow-x:auto;
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    background:var(--panel);
+    box-shadow:var(--shadow);
+  }
+  table{
+    border-collapse:collapse;
+    width:100%;
+    min-width:900px;
+  }
+  thead th{
+    position:sticky;
+    top:0;
+    background:var(--navy);
+    color:#fff;
+    text-align:left;
+    font-size:11.5px;
+    text-transform:uppercase;
+    letter-spacing:.3px;
+    padding:10px 12px;
+    white-space:nowrap;
+    z-index:1;
+  }
+  thead th.extra-col{background:#2c4a6e;}
+  tbody td{
+    padding:8px 10px;
+    border-bottom:1px solid var(--border);
+    vertical-align:top;
+    font-size:13px;
+  }
+  tbody tr:hover{background:#f7f9fc;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.col-fund{min-width:280px;}
+  td.col-cat{min-width:130px;}
+  td.col-date{min-width:150px;}
+  td.col-amount{min-width:150px;}
+  td.col-currency{min-width:80px;}
+  td.col-extra{min-width:230px;font-size:12.3px;}
+  td.col-actions{width:40px;text-align:center;}
+
+  .badge{
+    display:inline-block;
+    font-size:10.5px;
+    font-weight:700;
+    padding:3px 8px;
+    border-radius:100px;
+    background:var(--muted-bg);
+    color:var(--text-muted);
+    border:1px solid var(--muted-border);
+    white-space:nowrap;
+  }
+
+  .status-box{
+    border-radius:6px;
+    padding:6px 9px;
+    border:1px solid var(--muted-border);
+    background:var(--muted-bg);
+    color:var(--muted-fg);
+  }
+  .status-box.ok{background:var(--ok-bg);color:var(--ok-fg);border-color:var(--ok-border);}
+  .status-box.warn{background:var(--warn-bg);color:var(--warn-fg);border-color:var(--warn-border);}
+  .status-box.danger{background:var(--danger-bg);color:var(--danger-fg);border-color:var(--danger-border);}
+  .status-box .line1{font-weight:700;margin-bottom:2px;}
+  .status-box .line2{opacity:.9;}
+  .status-box .raw{
+    display:block;
+    margin-top:4px;
+    font-style:italic;
+    opacity:.85;
+    font-size:11.5px;
+  }
+
+  /* fund picker (combobox) */
+  .fund-picker{position:relative;}
+  .fund-picker input{cursor:text;}
+  .fund-dropdown{
+    display:none;
+    position:fixed;
+    max-height:320px;
+    overflow-y:auto;
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:6px;
+    box-shadow:0 8px 24px rgba(15,42,74,.18);
+    z-index:200;
+  }
+  .fund-dropdown.open{display:block;}
+  .fund-option{
+    padding:8px 10px;
+    cursor:pointer;
+    border-bottom:1px solid #f0f2f6;
+    font-size:12.8px;
+  }
+  .fund-option:last-child{border-bottom:none;}
+  .fund-option:hover, .fund-option.active{background:#eaf1fb;}
+  .fund-option .fo-name{font-weight:600;color:var(--text);}
+  .fund-option .fo-meta{color:var(--text-muted);font-size:11px;margin-top:1px;}
+  .fund-option .fo-cal{
+    display:inline-block;
+    margin-left:6px;
+    font-size:9.5px;
+    padding:1px 6px;
+    border-radius:100px;
+    font-weight:700;
+  }
+  .fo-cal.yes{background:var(--ok-bg);color:var(--ok-fg);}
+  .fo-cal.no{background:var(--muted-bg);color:var(--muted-fg);}
+  .fund-dropdown .no-results{padding:10px;color:var(--text-muted);font-size:12.5px;}
+  .fund-selected-tag{
+    margin-top:4px;
+    font-size:11px;
+    color:var(--text-muted);
+  }
+
+  .empty-state{
+    padding:34px 20px;
+    text-align:center;
+    color:var(--text-muted);
+    font-size:13px;
+  }
+
+  footer.app-footer{
+    margin-top:20px;
+    font-size:11.5px;
+    color:var(--text-muted);
+    line-height:1.6;
+  }
+  footer.app-footer b{color:var(--text);}
+
+  @media print{
+    body{background:#fff;}
+    .no-print{display:none !important;}
+    .wrap{max-width:none;padding:0;}
+    header.app-header{background:var(--navy) !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .table-scroll{box-shadow:none;overflow:visible;}
+    thead th{position:static;background:var(--navy) !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .fund-dropdown{display:none !important;}
+  }
+
+  @media (max-width: 720px){
+    header.app-header{flex-direction:column;}
+    .header-meta{text-align:left;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="app-header">
+    <div>
+      <h1>Consolidation — Fonds Non Cotés</h1>
+      <p>Outil interne de suivi des investissements clients &amp; calendriers de passage d'ordres</p>
+    </div>
+    <div class="header-meta">
+      <div><strong id="clientNameDisplay">—</strong></div>
+      <div id="genDate"></div>
+    </div>
+  </header>
+
+  <div class="banner no-print">
+    ⚠️ <b>Usage interne — vérification recommandée.</b> Les dates d'ordres proviennent des calendriers
+    officiels déposés par les sociétés de gestion et les pénalités de sortie sont ressaisies à partir de
+    ces mêmes documents. En cas de doute ou d'enjeu pour le client, vérifiez toujours la donnée affichée
+    contre le PDF / DICI officiel du fonds avant de répondre au client.
+  </div>
+
+  <div class="panel no-print">
+    <div class="toolbar">
+      <div class="grow">
+        <label class="field-label" for="clientNameInput">Nom du client</label>
+        <input type="text" id="clientNameInput" placeholder="Ex : M. et Mme Dupont">
+      </div>
+      <div>
+        <label class="field-label">&nbsp;</label>
+        <button class="btn" id="addRowBtn" type="button">+ Ajouter une ligne</button>
+      </div>
+      <div>
+        <label class="field-label">&nbsp;</label>
+        <button class="btn secondary" id="toggleExitBtn" type="button">Afficher les dates de sortie</button>
+      </div>
+      <div>
+        <label class="field-label">&nbsp;</label>
+        <button class="btn secondary" id="printBtn" type="button">Imprimer / PDF</button>
+      </div>
+      <div>
+        <label class="field-label">&nbsp;</label>
+        <button class="btn ghost" id="clearBtn" type="button" style="border:1px solid var(--danger-border);">Tout effacer</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr id="headRow">
+          <th style="min-width:280px;">Fonds</th>
+          <th style="min-width:130px;">Catégorie</th>
+          <th style="min-width:150px;">Date d'investissement</th>
+          <th style="min-width:150px;">Montant investi</th>
+          <th style="min-width:80px;">Devise</th>
+          <th class="extra-col hidden-col" style="min-width:230px;">Prochain ordre — entrée</th>
+          <th class="extra-col hidden-col" style="min-width:230px;">Prochain ordre — sortie</th>
+          <th class="extra-col hidden-col" style="min-width:230px;">Prochaine réception du cash</th>
+          <th class="extra-col hidden-col" style="min-width:230px;">Pénalité de sortie</th>
+          <th class="no-print" style="width:40px;"></th>
+        </tr>
+      </thead>
+      <tbody id="rowsBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none;">
+      Aucune ligne pour l'instant. Cliquez sur « + Ajouter une ligne » pour commencer la consolidation du client.
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <p>
+      <b>Source des données :</b> Bibliothèque de fonds Althos &amp; Calendriers de fonds Althos
+      (généré le <span id="genDateFooter"></span>). Les calendriers de passage d'ordres ne sont
+      disponibles que pour les fonds ayant un calendrier officiel déposé — voir la mention
+      « calendrier indisponible » le cas échéant. Les données sont enregistrées uniquement dans le
+      navigateur (aucune transmission externe) ; utilisez « Imprimer / PDF » pour archiver la
+      consolidation dans le dossier client.
+    </p>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var DATA = window.FUNDS_DATA || {funds:[], calendar:{}, generatedAt:""};
+  var FUNDS = DATA.funds || [];
+  var CALENDAR = DATA.calendar || {};
+  var FUNDS_BY_KEY = {};
+  FUNDS.forEach(function(f){ FUNDS_BY_KEY[f.key] = f; });
+
+  document.getElementById("genDate").textContent = "Base fonds au " + (DATA.generatedAt || "?");
+  document.getElementById("genDateFooter").textContent = DATA.generatedAt || "?";
+
+  var MONTHS_FR = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+
+  function fmtDateISO(iso){
+    if(!iso) return null;
+    var p = iso.split("-");
+    if(p.length!==3) return iso;
+    var d = parseInt(p[2],10), m = parseInt(p[1],10)-1, y = p[0];
+    return d + " " + MONTHS_FR[m] + " " + y;
+  }
+
+  function todayISO(){
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth()+1).padStart(2,"0");
+    var day = String(d.getDate()).padStart(2,"0");
+    return y+"-"+m+"-"+day;
+  }
+
+  function normalize(s){
+    return (s||"").toString()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .toLowerCase();
+  }
+
+  // ---------------------------------------------------------------------
+  // State + persistence
+  // ---------------------------------------------------------------------
+  var STORAGE_ROWS = "althos_consolidation_rows_v1";
+  var STORAGE_CLIENT = "althos_consolidation_client_v1";
+  var STORAGE_TOGGLE = "althos_consolidation_toggle_v1";
+
+  var state = {
+    client: "",
+    showExit: false,
+    rows: []
+  };
+
+  function uid(){ return "r" + Math.random().toString(36).slice(2,10); }
+
+  function loadState(){
+    try{
+      var rowsRaw = localStorage.getItem(STORAGE_ROWS);
+      state.rows = rowsRaw ? JSON.parse(rowsRaw) : [];
+    }catch(e){ state.rows = []; }
+    state.client = localStorage.getItem(STORAGE_CLIENT) || "";
+    state.showExit = localStorage.getItem(STORAGE_TOGGLE) === "1";
+  }
+
+  function saveRows(){
+    localStorage.setItem(STORAGE_ROWS, JSON.stringify(state.rows));
+  }
+  function saveClient(){
+    localStorage.setItem(STORAGE_CLIENT, state.client);
+  }
+  function saveToggle(){
+    localStorage.setItem(STORAGE_TOGGLE, state.showExit ? "1" : "0");
+  }
+
+  // ---------------------------------------------------------------------
+  // Calendar lookup
+  // ---------------------------------------------------------------------
+  function getEntries(isin, kinds){
+    if(!isin || !CALENDAR[isin]) return null;
+    var byType = CALENDAR[isin];
+    var merged = [];
+    kinds.forEach(function(k){
+      if(byType[k]) merged = merged.concat(byType[k]);
+    });
+    if(!merged.length) return null;
+    merged.sort(function(a,b){
+      var da = a.execution || a.cutoff || a.valorisation || "9999-99-99";
+      var db = b.execution || b.cutoff || b.valorisation || "9999-99-99";
+      return da < db ? -1 : (da > db ? 1 : 0);
+    });
+    return merged;
+  }
+
+  function findNext(entries, today){
+    if(!entries || !entries.length) return {status:"none"};
+    for(var i=0;i<entries.length;i++){
+      var e = entries[i];
+      var deadline = e.cutoff || e.execution || e.valorisation;
+      if(deadline && deadline >= today) return {status:"found", entry:e};
+    }
+    return {status:"expired", lastEntry: entries[entries.length-1]};
+  }
+
+  function renderOrderCell(fund, direction){
+    // direction: 'entree' -> Souscription, 'sortie' -> Rachat
+    var kinds = direction === "entree"
+      ? ["Souscription", "Souscription et rachat"]
+      : ["Rachat", "Souscription et rachat"];
+
+    if(!fund.isin){
+      return '<div class="status-box">Fonds sans ISIN référencé — vérifier manuellement.</div>';
+    }
+    if(!fund.hasCalendar){
+      return '<div class="status-box">Calendrier non disponible pour ce fonds — contacter la société de gestion.</div>';
+    }
+    var entries = getEntries(fund.isin, kinds);
+    if(!entries){
+      var label = direction === "entree" ? "de souscription" : "de rachat";
+      return '<div class="status-box">Aucune fenêtre ' + label + ' suivie pour ce fonds.</div>';
+    }
+    var res = findNext(entries, todayISO());
+    if(res.status === "found"){
+      var e = res.entry;
+      var opLabel = direction === "entree" ? "Souscription" : "Rachat";
+      var opDate = e.valorisation || e.execution;
+      var html = '<div class="status-box ok">';
+      html += '<div class="line1">Cut-off : ' + (fmtDateISO(e.cutoff) || "—") + '</div>';
+      html += '<div class="line2">' + opLabel + ' (VL) : ' + (fmtDateISO(opDate) || "—") + '</div>';
+      if(e.periode) html += '<div class="line2">Période : ' + e.periode + '</div>';
+      html += '</div>';
+      return html;
+    }
+    // expired: calendar exists but doesn't cover the future anymore
+    var lastCovered = res.lastEntry ? (res.lastEntry.execution || res.lastEntry.cutoff || res.lastEntry.valorisation) : null;
+    return '<div class="status-box warn">Calendrier connu jusqu\'au ' + (fmtDateISO(lastCovered) || "?") +
+      ' — au-delà, calendrier de l\'année suivante non encore intégré. Demander le calendrier à jour.</div>';
+  }
+
+  function renderCashCell(fund){
+    if(!fund.isin){
+      return '<div class="status-box">Fonds sans ISIN référencé — vérifier manuellement.</div>';
+    }
+    if(!fund.hasCalendar){
+      return '<div class="status-box">Calendrier non disponible pour ce fonds.</div>';
+    }
+    var entries = getEntries(fund.isin, ["Rachat", "Souscription et rachat"]);
+    if(!entries){
+      return '<div class="status-box">Aucune fenêtre de rachat suivie pour ce fonds.</div>';
+    }
+    var res = findNext(entries, todayISO());
+    if(res.status === "found"){
+      var e = res.entry;
+      if(!e.reglementCash){
+        return '<div class="status-box warn">Non précisé dans le calendrier pour cette échéance — voir société de gestion.</div>';
+      }
+      var html = '<div class="status-box ok">';
+      html += '<div class="line1">' + fmtDateISO(e.reglementCash) + '</div>';
+      html += '<div class="line2">Suite au rachat du ' + (fmtDateISO(e.valorisation || e.execution) || "—") + '</div>';
+      html += '</div>';
+      return html;
+    }
+    var lastCovered = res.lastEntry ? (res.lastEntry.execution || res.lastEntry.cutoff || res.lastEntry.valorisation) : null;
+    return '<div class="status-box warn">Calendrier connu jusqu\'au ' + (fmtDateISO(lastCovered) || "?") + '.</div>';
+  }
+
+  // ---------------------------------------------------------------------
+  // Penalty computation
+  // ---------------------------------------------------------------------
+  function monthsBetween(startISO, endISO){
+    var s = startISO.split("-").map(Number);
+    var e = endISO.split("-").map(Number);
+    var months = (e[0]-s[0])*12 + (e[1]-s[1]);
+    if(e[2] < s[2]) months -= 1;
+    return Math.max(0, months);
+  }
+
+  function renderPenaltyCell(fund, dateInvestissement){
+    var pen = fund.penalite || {kind:"inconnue", raw:null, tiers:[]};
+
+    if(pen.kind === "inconnue"){
+      return '<div class="status-box">Pénalité de sortie non renseignée dans la base — vérifier la notice / DICI du fonds.</div>';
+    }
+    if(pen.kind === "manuel"){
+      return '<div class="status-box warn"><div class="line1">⚠️ À vérifier manuellement</div>' +
+        '<span class="raw">' + escapeHtml(pen.raw) + '</span></div>';
+    }
+    if(pen.kind === "aucune"){
+      return '<div class="status-box ok"><div class="line1">Aucune pénalité de sortie</div>' +
+        '<span class="raw">' + escapeHtml(pen.raw || "") + '</span></div>';
+    }
+
+    // seuil / soft / degressif -> needs an investment date to conclude
+    if(!dateInvestissement){
+      var summary = pen.tiers.map(function(t){
+        return (t.rate) + "% jusqu'à " + (t.maxMonths!=null ? t.maxMonths+" mois" : "∞");
+      }).join(" · ");
+      return '<div class="status-box warn"><div class="line1">Saisir une date d\'investissement pour statuer</div>' +
+        '<div class="line2">Règle : ' + summary + '</div>' +
+        '<span class="raw">' + escapeHtml(pen.raw) + '</span></div>';
+    }
+
+    var monthsHeld = monthsBetween(dateInvestissement, todayISO());
+    var tier = null;
+    for(var i=0;i<pen.tiers.length;i++){
+      var t = pen.tiers[i];
+      var lo = t.minMonths || 0;
+      var hi = t.maxMonths;
+      if(monthsHeld >= lo && (hi === null || hi === undefined || monthsHeld < hi)){
+        tier = t; break;
+      }
+    }
+    // seuil/soft: a single tier means "penalty applies before maxMonths"
+    if(pen.kind === "seuil" || pen.kind === "soft"){
+      var t0 = pen.tiers[0];
+      var softLabel = pen.kind === "soft" ? " (soft lock-up)" : "";
+      if(monthsHeld < t0.maxMonths){
+        var remaining = t0.maxMonths - monthsHeld;
+        return '<div class="status-box danger">' +
+          '<div class="line1">⚠️ Concerné : pénalité de ' + t0.rate + '%' + softLabel + '</div>' +
+          '<div class="line2">Détention : ' + monthsHeld + ' mois / seuil ' + t0.maxMonths + ' mois (encore ' + remaining + ' mois)</div>' +
+          '<span class="raw">' + escapeHtml(pen.raw) + '</span></div>';
+      } else {
+        return '<div class="status-box ok">' +
+          '<div class="line1">Non concerné' + softLabel + '</div>' +
+          '<div class="line2">Détention : ' + monthsHeld + ' mois ≥ seuil ' + t0.maxMonths + ' mois</div>' +
+          '<span class="raw">' + escapeHtml(pen.raw) + '</span></div>';
+      }
+    }
+
+    if(pen.kind === "degressif"){
+      if(tier && tier.rate > 0){
+        return '<div class="status-box danger">' +
+          '<div class="line1">⚠️ Concerné : pénalité dégressive de ' + tier.rate + '%</div>' +
+          '<div class="line2">Détention : ' + monthsHeld + ' mois — palier ' + tier.minMonths + '-' + (tier.maxMonths!=null?tier.maxMonths:"∞") + ' mois</div>' +
+          '<span class="raw">' + escapeHtml(pen.raw) + '</span></div>';
+      } else {
+        return '<div class="status-box ok">' +
+          '<div class="line1">Non concerné (palier à 0%)</div>' +
+          '<div class="line2">Détention : ' + monthsHeld + ' mois</div>' +
+          '<span class="raw">' + escapeHtml(pen.raw) + '</span></div>';
+      }
+    }
+
+    return '<div class="status-box">Règle de pénalité non reconnue — vérifier manuellement.<span class="raw">' + escapeHtml(pen.raw||"") + '</span></div>';
+  }
+
+  function escapeHtml(s){
+    return (s||"").replace(/[&<>"']/g, function(c){
+      return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c];
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Fund picker (searchable combobox)
+  // ---------------------------------------------------------------------
+  // Non-capturing: only reacts to actual page/window scroll, not the inner
+  // horizontal auto-scroll of the table container while typing.
+  window.addEventListener("scroll", function(){
+    document.querySelectorAll(".fund-dropdown.open").forEach(function(el){
+      el.classList.remove("open");
+    });
+  });
+
+  function buildFundPicker(row, td){
+    var wrap = document.createElement("div");
+    wrap.className = "fund-picker";
+
+    var input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "Rechercher un fonds (nom ou ISIN)…";
+    var current = FUNDS_BY_KEY[row.fundKey];
+    input.value = current ? (current.isin ? current.isin + " — " + current.nom : current.nom) : "";
+
+    var dropdown = document.createElement("div");
+    dropdown.className = "fund-dropdown";
+
+    wrap.appendChild(input);
+    wrap.appendChild(dropdown);
+    td.innerHTML = "";
+    td.appendChild(wrap);
+
+    var activeIndex = -1;
+    var currentResults = [];
+
+    function closeDropdown(){
+      dropdown.classList.remove("open");
+      activeIndex = -1;
+    }
+
+    function openDropdown(query){
+      var q = normalize(query);
+      var results = FUNDS.filter(function(f){
+        if(!q) return true;
+        return normalize(f.nom).indexOf(q) !== -1 || (f.isin && normalize(f.isin).indexOf(q) !== -1);
+      }).slice(0, 40);
+      currentResults = results;
+      dropdown.innerHTML = "";
+      if(!results.length){
+        var none = document.createElement("div");
+        none.className = "no-results";
+        none.textContent = "Aucun fonds trouvé.";
+        dropdown.appendChild(none);
+      } else {
+        results.forEach(function(f, idx){
+          var opt = document.createElement("div");
+          opt.className = "fund-option";
+          opt.dataset.index = idx;
+          var calBadge = '<span class="fo-cal ' + (f.hasCalendar?"yes":"no") + '">' + (f.hasCalendar?"calendrier OK":"pas de calendrier") + '</span>';
+          opt.innerHTML = '<div class="fo-name">' + escapeHtml(f.nom) + calBadge + '</div>' +
+            '<div class="fo-meta">' + escapeHtml(f.isin || "sans ISIN") + ' · ' + escapeHtml(f.categorie || "") + '</div>';
+          opt.addEventListener("mousedown", function(ev){
+            ev.preventDefault();
+            selectFund(f);
+          });
+          dropdown.appendChild(opt);
+        });
+      }
+      positionDropdown();
+      dropdown.classList.add("open");
+    }
+
+    function positionDropdown(){
+      var rect = input.getBoundingClientRect();
+      dropdown.style.left = rect.left + "px";
+      dropdown.style.top = (rect.bottom + 4) + "px";
+      dropdown.style.width = rect.width + "px";
+    }
+
+    function selectFund(f){
+      row.fundKey = f.key;
+      input.value = f.isin ? (f.isin + " — " + f.nom) : f.nom;
+      closeDropdown();
+      saveRows();
+      renderRow(row);
+    }
+
+    input.addEventListener("focus", function(){ openDropdown(input.value === (currentDisplayValue(row)) ? "" : input.value); });
+    input.addEventListener("input", function(){ openDropdown(input.value); });
+    input.addEventListener("keydown", function(ev){
+      if(!dropdown.classList.contains("open")) return;
+      var opts = dropdown.querySelectorAll(".fund-option");
+      if(ev.key === "ArrowDown"){
+        ev.preventDefault();
+        activeIndex = Math.min(activeIndex+1, opts.length-1);
+        updateActive(opts);
+      } else if(ev.key === "ArrowUp"){
+        ev.preventDefault();
+        activeIndex = Math.max(activeIndex-1, 0);
+        updateActive(opts);
+      } else if(ev.key === "Enter"){
+        ev.preventDefault();
+        if(activeIndex >= 0 && currentResults[activeIndex]) selectFund(currentResults[activeIndex]);
+      } else if(ev.key === "Escape"){
+        closeDropdown();
+      }
+    });
+    input.addEventListener("blur", function(){
+      setTimeout(function(){
+        closeDropdown();
+        // revert text if nothing valid was chosen and field doesn't match a known fund
+        var f = FUNDS_BY_KEY[row.fundKey];
+        input.value = f ? (f.isin ? f.isin + " — " + f.nom : f.nom) : "";
+      }, 120);
+    });
+
+    function updateActive(opts){
+      opts.forEach(function(o,i){ o.classList.toggle("active", i===activeIndex); });
+      if(opts[activeIndex]) opts[activeIndex].scrollIntoView({block:"nearest"});
+    }
+
+    function currentDisplayValue(r){
+      var f = FUNDS_BY_KEY[r.fundKey];
+      return f ? (f.isin ? f.isin + " — " + f.nom : f.nom) : "";
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------
+  var tbody = document.getElementById("rowsBody");
+  var emptyState = document.getElementById("emptyState");
+
+  function renderAll(){
+    tbody.innerHTML = "";
+    emptyState.style.display = state.rows.length ? "none" : "block";
+    state.rows.forEach(function(row){ renderRow(row); });
+    updateExtraColumnsVisibility();
+  }
+
+  function renderRow(row){
+    var tr = document.getElementById(row.id);
+    var isNew = !tr;
+    if(isNew){
+      tr = document.createElement("tr");
+      tr.id = row.id;
+      tbody.appendChild(tr);
+    }
+    tr.innerHTML = "";
+
+    // Fonds
+    var tdFund = document.createElement("td");
+    tdFund.className = "col-fund";
+    tr.appendChild(tdFund);
+    buildFundPicker(row, tdFund);
+
+    var fund = FUNDS_BY_KEY[row.fundKey];
+
+    // Catégorie
+    var tdCat = document.createElement("td");
+    tdCat.className = "col-cat";
+    tdCat.innerHTML = fund ? '<span class="badge">' + escapeHtml(fund.categorie || "—") + '</span>' : '<span class="badge">—</span>';
+    tr.appendChild(tdCat);
+
+    // Date investissement
+    var tdDate = document.createElement("td");
+    tdDate.className = "col-date";
+    var dateInput = document.createElement("input");
+    dateInput.type = "date";
+    dateInput.value = row.dateInvestissement || "";
+    dateInput.addEventListener("change", function(){
+      row.dateInvestissement = dateInput.value;
+      saveRows();
+      renderRow(row);
+    });
+    tdDate.appendChild(dateInput);
+    tr.appendChild(tdDate);
+
+    // Montant
+    var tdAmount = document.createElement("td");
+    tdAmount.className = "col-amount";
+    var amountInput = document.createElement("input");
+    amountInput.type = "number";
+    amountInput.min = "0";
+    amountInput.step = "100";
+    amountInput.placeholder = "0";
+    amountInput.value = row.montant != null ? row.montant : "";
+    amountInput.addEventListener("change", function(){
+      row.montant = amountInput.value === "" ? null : Number(amountInput.value);
+      saveRows();
+    });
+    tdAmount.appendChild(amountInput);
+    tr.appendChild(tdAmount);
+
+    // Devise
+    var tdCurrency = document.createElement("td");
+    tdCurrency.className = "col-currency";
+    var currencyInput = document.createElement("input");
+    currencyInput.type = "text";
+    currencyInput.maxLength = 6;
+    currencyInput.value = row.devise || (fund && fund.devise) || "EUR";
+    currencyInput.addEventListener("change", function(){
+      row.devise = currencyInput.value.toUpperCase();
+      currencyInput.value = row.devise;
+      saveRows();
+    });
+    tdCurrency.appendChild(currencyInput);
+    tr.appendChild(tdCurrency);
+
+    // Extra columns
+    ["entree","sortie","cash","penalty"].forEach(function(kind){
+      var td = document.createElement("td");
+      td.className = "col-extra extra-col hidden-col";
+      if(fund){
+        if(kind === "entree") td.innerHTML = renderOrderCell(fund, "entree");
+        else if(kind === "sortie") td.innerHTML = renderOrderCell(fund, "sortie");
+        else if(kind === "cash") td.innerHTML = renderCashCell(fund);
+        else if(kind === "penalty") td.innerHTML = renderPenaltyCell(fund, row.dateInvestissement);
+      } else {
+        td.innerHTML = '<div class="status-box">Sélectionnez un fonds</div>';
+      }
+      tr.appendChild(td);
+    });
+
+    // Actions
+    var tdActions = document.createElement("td");
+    tdActions.className = "col-actions no-print";
+    var delBtn = document.createElement("button");
+    delBtn.className = "btn ghost";
+    delBtn.type = "button";
+    delBtn.title = "Supprimer la ligne";
+    delBtn.textContent = "✕";
+    delBtn.addEventListener("click", function(){
+      state.rows = state.rows.filter(function(r){ return r.id !== row.id; });
+      saveRows();
+      renderAll();
+    });
+    tdActions.appendChild(delBtn);
+    tr.appendChild(tdActions);
+
+    applyExtraColumnState(tr);
+  }
+
+  function updateExtraColumnsVisibility(){
+    document.querySelectorAll(".extra-col").forEach(function(el){
+      el.classList.toggle("hidden-col", !state.showExit);
+    });
+    var btn = document.getElementById("toggleExitBtn");
+    btn.textContent = state.showExit ? "Masquer les dates de sortie" : "Afficher les dates de sortie";
+    btn.classList.toggle("active", state.showExit);
+  }
+
+  function applyExtraColumnState(tr){
+    tr.querySelectorAll(".extra-col").forEach(function(el){
+      el.classList.toggle("hidden-col", !state.showExit);
+    });
+  }
+
+  // hide extra columns by default via CSS class toggling (display none)
+  var styleEl = document.createElement("style");
+  styleEl.textContent = ".hidden-col{display:none;}";
+  document.head.appendChild(styleEl);
+
+  // ---------------------------------------------------------------------
+  // Toolbar wiring
+  // ---------------------------------------------------------------------
+  var clientInput = document.getElementById("clientNameInput");
+  var clientDisplay = document.getElementById("clientNameDisplay");
+
+  function refreshClientDisplay(){
+    clientDisplay.textContent = state.client ? state.client : "Client non renseigné";
+  }
+
+  clientInput.addEventListener("input", function(){
+    state.client = clientInput.value;
+    saveClient();
+    refreshClientDisplay();
+  });
+
+  document.getElementById("addRowBtn").addEventListener("click", function(){
+    state.rows.push({ id: uid(), fundKey: null, dateInvestissement: "", montant: null, devise: "EUR" });
+    saveRows();
+    renderAll();
+  });
+
+  document.getElementById("toggleExitBtn").addEventListener("click", function(){
+    state.showExit = !state.showExit;
+    saveToggle();
+    updateExtraColumnsVisibility();
+  });
+
+  document.getElementById("printBtn").addEventListener("click", function(){
+    window.print();
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", function(){
+    if(!state.rows.length && !state.client) return;
+    if(confirm("Effacer toute la consolidation en cours (client et lignes) ? Cette action est irréversible.")){
+      state.rows = [];
+      state.client = "";
+      clientInput.value = "";
+      saveRows();
+      saveClient();
+      refreshClientDisplay();
+      renderAll();
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // Init
+  // ---------------------------------------------------------------------
+  loadState();
+  clientInput.value = state.client;
+  refreshClientDisplay();
+  if(!state.rows.length){
+    state.rows.push({ id: uid(), fundKey: null, dateInvestissement: "", montant: null, devise: "EUR" });
+  }
+  renderAll();
+
+})();
+</script>
+</body>
+</html>

@@ -79,17 +79,27 @@ page. L'outil est une aide à la consolidation, pas une source réglementaire.
 ## Structure du dépôt
 
 ```
-ajout-calendrier-sortie.html        Outil principal : dépôt d'un fichier client -> feuille ajoutée automatiquement
+ajout-calendrier-sortie.html        Outil principal, PRÊT À DISTRIBUER (fichier unique, autonome)
+index.html                          Outil de saisie manuelle, PRÊT À DISTRIBUER (fichier unique, autonome)
+ajout-calendrier-sortie.template.html   Source éditable de l'outil principal (à éditer, PAS le .html)
+index.template.html                     Source éditable de l'outil de saisie (à éditer, PAS le .html)
+scripts/inline_assets.py            Régénère les 2 .html autonomes à partir des .template.html
 js/exit_calendar_builder.js         Logique de génération (portage JS de scripts/build_client_workbook.py)
 vendor/exceljs.min.js               Bibliothèque ExcelJS vendorisée (lecture/écriture .xlsx dans le navigateur)
-index.html                          Outil de saisie manuelle (HTML + CSS + JS, aucune dépendance externe)
-data/funds_data.js                  Données des fonds générées (voir ci-dessous) — chargées par les 2 outils web
+data/funds_data.js                  Données des fonds générées (voir ci-dessous)
 scripts/build_data.py               Script qui regénère data/funds_data.js à partir des fichiers source
 scripts/build_client_workbook.py    Équivalent Python (ligne de commande) de ajout-calendrier-sortie.html
 source/Calendriers_de_fonds_Althos.xlsx     Classeur "Calendriers" (feuilles Suivi / Calendriers)
 source/Bibliotheque_de_fonds_Althos.xlsx    Classeur "Bibliothèque de fonds" (feuille Fonds)
 source/ConsolidationTemplateAlthosAI_V5.xlsx  Template de consolidation vierge, utilisé par build_client_workbook.py
 ```
+
+**`index.html` et `ajout-calendrier-sortie.html` sont des fichiers 100% autonomes** (ExcelJS et
+les données des fonds sont inlinés dedans, aucun fichier `js/`, `vendor/` ou `data/` requis à
+côté) — c'est ce qui permet de les envoyer/ouvrir comme un fichier unique, y compris directement
+depuis l'aperçu d'un .zip sans l'extraire au préalable. **Ne les éditez jamais directement** :
+modifiez `*.template.html` (ou `js/exit_calendar_builder.js` / `data/funds_data.js`) puis
+relancez `python3 scripts/inline_assets.py` pour régénérer les 2 fichiers finaux.
 
 ⚠️ **Ne jamais committer de fichier de consolidation client réel dans ce dépôt** (même anonymisé) :
 seul le template vierge ci-dessus doit être versionné. Les fichiers clients sont à traiter
@@ -104,7 +114,11 @@ localement via `ajout-calendrier-sortie.html`, qui ne transmet rien en dehors du
    ```
    Cela régénère entièrement `data/funds_data.js`. Le script affiche un résumé (nombre de fonds,
    nombre de calendriers, répartition des règles de pénalité reconnues).
-3. Ouvrir `index.html` et vérifier rapidement 1-2 fonds connus (sondage), comme préconisé dans
+3. Régénérer les 2 pages autonomes avec les données à jour :
+   ```bash
+   python3 scripts/inline_assets.py
+   ```
+4. Ouvrir `index.html` et vérifier rapidement 1-2 fonds connus (sondage), comme préconisé dans
    la feuille « Lisez-moi » du classeur Calendriers.
 4. Committer les 3 fichiers modifiés (`source/*.xlsx`, `data/funds_data.js`).
 

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ajout Calendrier de Sortie — Althos</title>
+<script src="vendor/exceljs.min.js"></script>
+<script src="data/funds_data.js"></script>
+<script src="js/exit_calendar_builder.js"></script>
+<style>
+  :root{
+    --navy:#0f2a4a;
+    --navy-dark:#0a1d34;
+    --bg:#f4f6f9;
+    --panel:#ffffff;
+    --border:#dde3ec;
+    --text:#1c2b3a;
+    --text-muted:#5b6b7d;
+    --ok-bg:#eaf6ee;
+    --ok-fg:#1c7c3c;
+    --ok-border:#bfe4cb;
+    --warn-bg:#fdf1e0;
+    --warn-fg:#9a5b00;
+    --warn-border:#f3d7a3;
+    --danger-bg:#fbe9e9;
+    --danger-fg:#a3252b;
+    --danger-border:#f1c3c5;
+    --radius:10px;
+    --shadow:0 1px 3px rgba(15,42,74,.08), 0 1px 2px rgba(15,42,74,.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    font-size:14px;
+    line-height:1.5;
+  }
+  .wrap{max-width:820px;margin:0 auto;padding:28px 24px 60px;}
+
+  header.app-header{
+    background:linear-gradient(135deg,var(--navy),var(--navy-dark));
+    color:#fff;
+    padding:22px 28px;
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    margin-bottom:18px;
+  }
+  header.app-header h1{margin:0 0 4px;font-size:20px;}
+  header.app-header p{margin:0;font-size:12.5px;color:#c9d4e2;}
+
+  .banner{
+    background:var(--warn-bg);
+    border:1px solid var(--warn-border);
+    color:var(--warn-fg);
+    border-radius:var(--radius);
+    padding:10px 14px;
+    font-size:12.5px;
+    margin-bottom:18px;
+  }
+  .banner b{font-weight:700;}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:20px;
+    margin-bottom:18px;
+  }
+
+  #dropZone{
+    border:2px dashed #b7c4d6;
+    border-radius:var(--radius);
+    padding:40px 20px;
+    text-align:center;
+    cursor:pointer;
+    transition:background .15s, border-color .15s;
+  }
+  #dropZone.drag{
+    background:#eef4fc;
+    border-color:var(--navy);
+  }
+  #dropZone .icon{font-size:34px;margin-bottom:8px;}
+  #dropZone .main-txt{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:4px;}
+  #dropZone .sub-txt{font-size:12.5px;color:var(--text-muted);}
+  #fileInput{display:none;}
+
+  .status{
+    margin-top:16px;
+    border-radius:8px;
+    padding:12px 14px;
+    font-size:13px;
+    display:none;
+  }
+  .status.show{display:block;}
+  .status.working{background:#eef2f7;color:var(--text-muted);border:1px solid var(--border);}
+  .status.ok{background:var(--ok-bg);color:var(--ok-fg);border:1px solid var(--ok-border);}
+  .status.error{background:var(--danger-bg);color:var(--danger-fg);border:1px solid var(--danger-border);}
+  .status .line1{font-weight:700;margin-bottom:4px;}
+  .status ul{margin:6px 0 0;padding-left:18px;}
+
+  .btn{
+    appearance:none;
+    border:1px solid var(--navy);
+    background:var(--navy);
+    color:#fff;
+    padding:10px 18px;
+    border-radius:6px;
+    font-size:13.5px;
+    font-weight:600;
+    cursor:pointer;
+    margin-top:12px;
+  }
+  .btn:hover{background:var(--navy-dark);}
+  .btn.secondary{
+    background:#fff;
+    color:var(--navy);
+    border:1px solid var(--border);
+  }
+  .btn.secondary:hover{background:#eef2f7;}
+
+  footer.app-footer{
+    margin-top:20px;
+    font-size:11.5px;
+    color:var(--text-muted);
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="app-header">
+    <h1>Ajout du calendrier de sortie à une consolidation</h1>
+    <p>Déposez le fichier Excel de consolidation d'un client : une nouvelle feuille « Calendrier
+      de sortie » est générée automatiquement, avec les mêmes fonds et la même mise en forme.</p>
+  </header>
+
+  <div class="banner">
+    ⚠️ <b>Vérification recommandée.</b> Les dates d'ordres et pénalités de sortie sont calculées
+    par formules à partir des calendriers officiels Althos. Vérifiez toujours une donnée
+    sensible contre le PDF / DICI officiel du fonds avant de répondre à un client.
+  </div>
+
+  <div class="panel">
+    <div id="dropZone">
+      <div class="icon">📄</div>
+      <div class="main-txt">Déposez le fichier de consolidation ici</div>
+      <div class="sub-txt">ou cliquez pour parcourir — fichier .xlsx uniquement</div>
+      <input type="file" id="fileInput" accept=".xlsx">
+    </div>
+
+    <div class="status" id="status"></div>
+
+    <div id="downloadArea" style="display:none;">
+      <button class="btn" id="downloadBtn" type="button">⬇ Télécharger le classeur complété</button>
+      <button class="btn secondary" id="resetBtn" type="button">Déposer un autre fichier</button>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <p>
+      Traitement 100% local dans le navigateur — le fichier déposé n'est jamais envoyé à un
+      serveur. Base fonds au <span id="genDate"></span> (Bibliothèque de fonds &amp; Calendriers
+      de fonds Althos). Pour mettre à jour cette base, voir le README du dépôt.
+    </p>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  document.getElementById("genDate").textContent = (window.FUNDS_DATA && window.FUNDS_DATA.generatedAt) || "?";
+
+  const dropZone = document.getElementById("dropZone");
+  const fileInput = document.getElementById("fileInput");
+  const statusEl = document.getElementById("status");
+  const downloadArea = document.getElementById("downloadArea");
+  const downloadBtn = document.getElementById("downloadBtn");
+  const resetBtn = document.getElementById("resetBtn");
+
+  let pendingBlobUrl = null;
+  let pendingFilename = null;
+
+  function setStatus(kind, html){
+    statusEl.className = "status show " + kind;
+    statusEl.innerHTML = html;
+  }
+  function clearStatus(){
+    statusEl.className = "status";
+    statusEl.innerHTML = "";
+  }
+
+  dropZone.addEventListener("click", function(){ fileInput.click(); });
+  ["dragenter","dragover"].forEach(function(evt){
+    dropZone.addEventListener(evt, function(e){ e.preventDefault(); dropZone.classList.add("drag"); });
+  });
+  ["dragleave","drop"].forEach(function(evt){
+    dropZone.addEventListener(evt, function(e){ e.preventDefault(); dropZone.classList.remove("drag"); });
+  });
+  dropZone.addEventListener("drop", function(e){
+    const files = e.dataTransfer.files;
+    if (files && files.length) handleFile(files[0]);
+  });
+  fileInput.addEventListener("change", function(e){
+    if (e.target.files && e.target.files.length) handleFile(e.target.files[0]);
+  });
+
+  resetBtn.addEventListener("click", function(){
+    clearStatus();
+    downloadArea.style.display = "none";
+    fileInput.value = "";
+    if (pendingBlobUrl) { URL.revokeObjectURL(pendingBlobUrl); pendingBlobUrl = null; }
+  });
+
+  function outputFilename(originalName){
+    const dot = originalName.lastIndexOf(".");
+    const base = dot > -1 ? originalName.slice(0, dot) : originalName;
+    return base + " - avec calendrier de sortie.xlsx";
+  }
+
+  async function handleFile(file){
+    downloadArea.style.display = "none";
+    if (!/\.xlsx$/i.test(file.name)){
+      setStatus("error", '<div class="line1">Format non supporté</div>Seuls les fichiers .xlsx sont acceptés.');
+      return;
+    }
+    setStatus("working", '<div class="line1">Traitement en cours…</div>Lecture de « ' + escapeHtml(file.name) + ' » et génération de la feuille « Calendrier de sortie ».');
+
+    try{
+      const buf = await file.arrayBuffer();
+      const result = await buildExitCalendarWorkbook(buf, window.FUNDS_DATA);
+      const blob = new Blob([result.buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      if (pendingBlobUrl) URL.revokeObjectURL(pendingBlobUrl);
+      pendingBlobUrl = URL.createObjectURL(blob);
+      pendingFilename = outputFilename(file.name);
+
+      const s = result.stats;
+      setStatus("ok",
+        '<div class="line1">✓ Feuille « Calendrier de sortie » générée</div>' +
+        '<ul>' +
+        '<li>' + s.fundRowsCount + ' ligne(s) de fonds traitée(s), dont ' + s.nonCoteCount + ' fonds non cotés reconnus (calendrier/pénalité calculés).</li>' +
+        '<li>Les autres lignes (fonds cotés ou non reconnus) affichent « — ».</li>' +
+        '</ul>'
+      );
+      downloadArea.style.display = "block";
+      triggerDownload();
+    } catch(err){
+      console.error(err);
+      setStatus("error",
+        '<div class="line1">✗ Échec du traitement</div>' + escapeHtml(err.message || String(err))
+      );
+    }
+  }
+
+  function triggerDownload(){
+    if (!pendingBlobUrl) return;
+    const a = document.createElement("a");
+    a.href = pendingBlobUrl;
+    a.download = pendingFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  downloadBtn.addEventListener("click", triggerDownload);
+
+  function escapeHtml(s){
+    return (s||"").replace(/[&<>"']/g, function(c){
+      return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c];
+    });
+  }
+})();
+</script>
+</body>
+</html>
