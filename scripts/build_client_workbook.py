@@ -376,14 +376,18 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         ws[f"{M}{r}"] = (f'=IF({L}{r}=0,"",IFERROR(_xlfn.MINIFS({cal("D")},'
                           f'{cal("A")},{b},{cal("C")},"Rachat",'
                           f'{cal("D")},">="&TODAY()),""))')
-        ws[f"{N}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX({cal("E")},'
-                          f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
-        ws[f"{Nx}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX({cal("F")},'
-                           f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
-        ws[f"{Np}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX({cal("G")},'
-                           f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
-        ws[f"{O}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX({cal("H")},'
-                          f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
+        # VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS avec
+        # une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une reconstruction de
+        # clé texte + MATCH, plus fragile) — même mécanisme que {M} ci-dessus, qui fonctionne de
+        # façon fiable.
+        ws[f"{N}{r}"] = (f'=IF({M}{r}="","",IFERROR(_xlfn.MINIFS({cal("E")},'
+                          f'{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r}),""))')
+        ws[f"{Nx}{r}"] = (f'=IF({M}{r}="","",IFERROR(_xlfn.MINIFS({cal("F")},'
+                           f'{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r}),""))')
+        ws[f"{Np}{r}"] = (f'=IF({M}{r}="","",IFERROR(_xlfn.MINIFS({cal("G")},'
+                           f'{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r}),""))')
+        ws[f"{O}{r}"] = (f'=IF({M}{r}="","",IFERROR(_xlfn.MINIFS({cal("H")},'
+                          f'{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r}),""))')
 
         ws[f"{Q}{r}"] = f'=IF({c}="","",IF({c}>TODAY(),"FUTUR",DATEDIF({c},TODAY(),"m")))'
         ws[f"{R}{r}"] = f'=COUNTIF({pen("A")},{b})'
@@ -399,7 +403,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         ws[f"{AB1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("K")},MATCH({b},{pen("A")},0)))'
         ws[f"{AC1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("L")},MATCH({b},{pen("A")},0)))'
         ws[f"{AD1}{r}"] = (f'=IF(OR({c}="",{Q}{r}="FUTUR"),"",_xlfn.IFS({Q}{r}<{U1}{r},{V1}{r},{Q}{r}<{W1}{r},{X1}{r},'
-                            f'{Q}{r}<{Y1}{r},{Z1}{r},{Q}{r}<{AA1}{r},{AB1}{r},TRUE,{AC1}{r}))')
+                            f'{Q}{r}<{Y1}{r},{Z1}{r},{Q}{r}<{AA1}{r},{AB1}{r},TRUE(),{AC1}{r}))')
 
         # Colonnes visibles E..I : valeurs reprises telles quelles de la base (une par champ).
         for col_letter, helper in (("E", M), ("F", N), ("G", Nx), ("H", Np), ("I", O)):
@@ -409,17 +413,20 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             cell.font = data_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
 
-        # Pénalité de sortie : vide si le client n'est plus concerné (délai dépassé) ; un
-        # message dans tous les autres cas.
+        # Pénalité de sortie : vide dès qu'il n'y a rien d'actionnable à signaler — pas de
+        # pénalité prévue pour ce fonds (kind="aucune"), aucune pénalité renseignée dans la base
+        # (kind="inconnue", traité comme "pas de pénalité"), ou délai de pénalité dépassé. Un
+        # message n'apparaît que dans les deux cas où le conseiller doit agir : une règle
+        # ambiguë à vérifier à la main, ou une pénalité active à signaler au client.
         ws[f"J{r}"] = (
             f'=_xlfn.IFS('
-            f'{S}{r}="aucune","Aucune pénalité de sortie."&IF({Tc}{r}<>""," ("&{Tc}{r}&")",""),'
             f'{S}{r}="manuel","⚠️ À VÉRIFIER MANUELLEMENT : "&{Tc}{r},'
-            f'{S}{r}="inconnue","Pénalité non renseignée — vérifier la notice / DICI du fonds.",'
+            f'{S}{r}="aucune","",'
+            f'{S}{r}="inconnue","",'
             f'{c}="","Saisir une date d\'investissement pour statuer sur la pénalité.",'
             f'{Q}{r}="FUTUR","Date d\'investissement postérieure à aujourd\'hui — vérifier la saisie.",'
             f'{AD1}{r}>0,"⚠️ CONCERNÉ : pénalité de "&{AD1}{r}&"% (détention "&{Q}{r}&" mois). "&{Tc}{r},'
-            f'TRUE,"")'
+            f'TRUE(),"")'
         )
         pen_cell = ws[f"J{r}"]
         pen_cell.font = data_font

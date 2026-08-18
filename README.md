@@ -181,22 +181,24 @@ structurée par `parse_penalite()` dans `scripts/build_data.py` :
 
 | Type détecté | Exemple de texte source | Comportement dans l'outil |
 |---|---|---|
-| `aucune` | « Aucune pénalité actuellement. » / « Pas de lock-up. » | Affiché en vert, pas de calcul nécessaire |
-| `seuil` | « Pénalité de 5% ... avant 1 an de détention » | Comparé à la date d'investissement saisie : concerné (rouge) tant que la détention est inférieure au seuil, sinon non concerné (vert) |
+| `aucune` | « Aucune pénalité actuellement. » / « Pas de lock-up. » | Cellule **vide** — pas de pénalité, rien à signaler |
+| `seuil` | « Pénalité de 5% ... avant 1 an de détention » | Comparé à la date d'investissement saisie : message « CONCERNÉ » tant que la détention est inférieure au seuil, sinon vide (non concerné) |
 | `soft` | « Soft lock-up de 2% si rachat dans les 12 mois... » | Même calcul que `seuil`, libellé « soft lock-up » ajouté |
-| `degressif` | « Pénalité dégressive : 0-18 mois 7,5% · 18-36 mois 5% · ... » | Palier applicable déterminé selon la détention ; 0% = non concerné |
+| `degressif` | « Pénalité dégressive : 0-18 mois 7,5% · 18-36 mois 5% · ... » | Palier applicable déterminé selon la détention ; 0% = vide (non concerné) |
 | `manuel` | Formulations ambiguës ou taux multiples selon la part détenue (ex. Hg Fusion) | **Aucun calcul automatique** — le texte brut est affiché avec un avertissement « à vérifier manuellement » |
-| `inconnue` | Pas de texte renseigné dans la base | « Pénalité non renseignée — vérifier la notice / DICI » |
+| `inconnue` | Pas de texte renseigné dans la base | Cellule **vide** — pas de pénalité renseignée dans la base équivaut à pas de pénalité |
 
-Le texte brut d'origine est **toujours affiché** sous le statut calculé, pour permettre une
-vérification en un coup d'œil avant de répondre à un client — conformément à la procédure de
+Le texte brut d'origine (quand il existe) est affiché avec le statut « CONCERNÉ », pour permettre
+une vérification en un coup d'œil avant de répondre à un client — conformément à la procédure de
 vérification par sondage décrite dans la feuille « Lisez-moi » du classeur Calendriers.
 
-**La cellule « Pénalité de sortie » n'est laissée vide que dans un seul cas : le client n'est
-plus concerné parce que le délai de pénalité (`seuil` / `soft` / `degressif`) est dépassé.** Dans
-tous les autres cas (aucune pénalité prévue pour ce fonds, cas `manuel` à vérifier, pénalité non
-renseignée, date d'investissement pas encore saisie, ou concerné par une pénalité en cours), un
-message explicite est affiché — rien n'est jamais silencieusement omis.
+**La cellule « Pénalité de sortie » reste vide dès qu'il n'y a rien d'actionnable à signaler** :
+pas de pénalité prévue pour ce fonds (`aucune`), pénalité non renseignée dans la base (`inconnue`,
+traité comme « pas de pénalité »), ou délai de pénalité dépassé (`seuil` / `soft` / `degressif`
+avec une détention supérieure au seuil). Un message n'apparaît que dans les cas où le conseiller
+doit agir : une règle ambiguë à vérifier à la main (`manuel`), une pénalité active en cours
+(« CONCERNÉ »), ou une saisie manquante/à corriger (date d'investissement pas encore saisie, ou
+postérieure à aujourd'hui).
 
 ### Comment les prochaines dates de rachat sont calculées
 
@@ -231,7 +233,7 @@ la feuille `Consolidation`.
 | Rachat — exécuté | Date d'exécution de l'ordre |
 | Rachat — publié | Date de publication de la VL |
 | Rachat — cash reçu | Date de règlement / réception du cash |
-| Pénalité de sortie | Vide si le délai de pénalité est dépassé (non concerné) ; sinon message explicite (concerné, aucune pénalité prévue, à vérifier manuellement, ou non renseignée), calculé à partir de la date d'investissement saisie |
+| Pénalité de sortie | Vide dès qu'il n'y a rien à signaler (aucune pénalité prévue, non renseignée dans la base, ou délai dépassé) ; message uniquement si concerné par une pénalité active ou si la règle est ambiguë (à vérifier manuellement) |
 
 Si aucun fonds détenu n'a de calendrier de rachat connu, la feuille l'indique clairement au lieu
 d'un tableau vide. Un même fonds détenu via plusieurs titulaires (ex. Monsieur ET Madame, chacun
