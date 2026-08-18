@@ -242,14 +242,9 @@ def write_bdd_penalites(wb, funds):
 # Nouvelle feuille visible "Calendrier de sortie"
 # ---------------------------------------------------------------------------
 
-_FR_WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-_FR_MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août",
-              "Septembre", "Octobre", "Novembre", "Décembre"]
-
-
-def format_french_date(d):
-    """« Mardi 18 Août 2026 », comme le sous-titre daté de la feuille Consolidation."""
-    return f"{_FR_WEEKDAYS[d.weekday()]} {d.day} {_FR_MONTHS[d.month - 1]} {d.year}"
+def format_date_fr(d):
+    """« 18/08/2026 », au format numérique jour/mois/année."""
+    return d.strftime("%d/%m/%Y")
 
 
 HELPER_NAMES = [
@@ -324,9 +319,18 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     # Style de bandeau de catégorie : repris tel quel de la première ligne de catégorie trouvée
     # dans la Consolidation (même couleur beige, même police en gras).
     category_style = copy(src_ws.cell(row=cat_rows[0], column=1)._style) if cat_rows else None
-    beige_side = Side(style="thin", color="FFDDCCB8")
-    grid_border = Border(top=beige_side, left=beige_side, bottom=beige_side, right=beige_side)
+    # Couleur de quadrillage : reprise telle quelle (référence de thème + teinte, PAS une valeur
+    # fixe) de la bordure déjà utilisée par l'en-tête de Consolidation — sa couleur réelle dépend
+    # du thème propre à chaque classeur (beige dans certains, bleu dans d'autres), donc on ne peut
+    # pas la coder en dur.
+    header_border = src_ws.cell(row=header_row, column=1).border
+    ref_side = header_border.left or header_border.top or header_border.right or header_border.bottom
+    grid_side = (copy(ref_side) if ref_side is not None and ref_side.style
+                 else Side(style="thin", color="FFDDCCB8"))
+    grid_side.style = "medium"
+    grid_border = Border(top=grid_side, left=grid_side, bottom=grid_side, right=grid_side)
     white_fill = PatternFill(start_color="FFFFFFFF", end_color="FFFFFFFF", fill_type="solid")
+    ws.sheet_view.showGridLines = False  # comme Consolidation : pas de quadrillage Excel par défaut
 
     headers = ["Titulaire", "Fonds", "ISIN", "Date d'investissement",
                "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
@@ -340,7 +344,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
     ws.row_dimensions[1].height = src_ws.row_dimensions[1].height or 22.5
 
-    subtitle_cell = ws.cell(row=3, column=1, value=format_french_date(datetime.date.today()))
+    subtitle_cell = ws.cell(row=3, column=1, value=format_date_fr(datetime.date.today()))
     subtitle_cell._style = copy(subtitle_style)
     subtitle_cell.alignment = Alignment(horizontal="center", vertical="center")
     ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(headers))

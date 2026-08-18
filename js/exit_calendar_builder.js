@@ -62,13 +62,10 @@
     return isSolid && isBold;
   }
 
-  const FR_WEEKDAYS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-  const FR_MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août",
-    "Septembre", "Octobre", "Novembre", "Décembre"];
-
-  /** "Mardi 18 Août 2026", comme le sous-titre daté de la feuille Consolidation. */
-  function formatFrenchDate(d) {
-    return `${FR_WEEKDAYS[d.getDay()]} ${d.getDate()} ${FR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  /** "18/08/2026", au format numérique jour/mois/année. */
+  function formatDateFr(d) {
+    const p2 = (n) => String(n).padStart(2, "0");
+    return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}`;
   }
 
   function cloneStyle(cell) {
@@ -299,6 +296,10 @@
     const pen = (col) => `BDD_Penalites!$${col}$2:$${col}$${penLastRow}`;
 
     const ws = workbook.addWorksheet("Calendrier de sortie");
+    // Quadrillage Excel par défaut désactivé, comme sur Consolidation : sans ça, le fond gris
+    // clair du quadrillage standard reste visible autour des bordures de couleur ajoutées plus
+    // bas, et le rendu ne paraît pas "blanc propre" comme sur Consolidation.
+    ws.views = [{ showGridLines: false }];
 
     // 1) Repérage des fonds à retenir : détenus (montant non nul, réparti par titulaire de
     //    contrat) ET dotés d'un calendrier de RACHAT connu dans la base Althos. Tout le reste
@@ -342,13 +343,17 @@
     // dans la Consolidation (même couleur beige, même police en gras).
     const { categoryRows } = classifyRows(srcWs, headerRow);
     const categoryStyle = categoryRows.length ? cloneStyle(srcWs.getCell(categoryRows[0], 1)) : null;
-    const BEIGE_ARGB = "FFDDCCB8";
-    const gridBorder = {
-      top: { style: "thin", color: { argb: BEIGE_ARGB } },
-      left: { style: "thin", color: { argb: BEIGE_ARGB } },
-      bottom: { style: "thin", color: { argb: BEIGE_ARGB } },
-      right: { style: "thin", color: { argb: BEIGE_ARGB } },
-    };
+    // Couleur de quadrillage : reprise telle quelle (référence de thème + teinte, PAS une valeur
+    // fixe) de la bordure déjà utilisée par l'en-tête de Consolidation — sa couleur réelle dépend
+    // du thème propre à chaque classeur (beige dans certains, bleu dans d'autres), donc on ne
+    // peut pas la coder en dur.
+    const headerBorder = srcWs.getCell(headerRow, 1).border || {};
+    const gridSide = JSON.parse(JSON.stringify(
+      headerBorder.left || headerBorder.top || headerBorder.right || headerBorder.bottom ||
+      { style: "thin", color: { argb: "FFDDCCB8" } }
+    ));
+    gridSide.style = "medium";
+    const gridBorder = { top: gridSide, left: gridSide, bottom: gridSide, right: gridSide };
 
     const headers = [
       "Titulaire", "Fonds", "ISIN", "Date d'investissement",
@@ -366,7 +371,7 @@
     ws.getRow(1).height = srcWs.getRow(1).height || 22.5;
 
     const subtitleCell = ws.getCell(3, 1);
-    subtitleCell.value = formatFrenchDate(new Date());
+    subtitleCell.value = formatDateFr(new Date());
     subtitleCell.style = JSON.parse(JSON.stringify(subtitleStyle));
     subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
     ws.mergeCells(3, 1, 3, headers.length);

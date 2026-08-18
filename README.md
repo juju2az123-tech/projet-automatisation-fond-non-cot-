@@ -42,13 +42,16 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    calendrier de rachat connu, la feuille l'indique clairement au lieu d'un tableau vide.
 
    La présentation reprend celle de la Consolidation elle-même : un bandeau de titre centré
-   « Calendrier des délais de sortie » (même bleu, même police, que le titre de Consolidation),
-   un sous-titre daté en italique juste en dessous (même style que la date affichée sur
-   Consolidation), un en-tête de tableau dans ce même bleu (au lieu de la couleur des catégories),
-   des bandeaux de catégorie en beige (même couleur que les catégories de Consolidation), les
-   fonds sur fond blanc avec un quadrillage fin dans ce même beige, et une police uniforme sur
-   toute la feuille (celle utilisée par la Consolidation, pas un choix arbitraire). Les colonnes
-   sont dimensionnées pour que chaque en-tête tienne sur une seule ligne.
+   « Calendrier des délais de sortie » (même bleu, même police que le titre de Consolidation),
+   un sous-titre daté en italique juste en dessous (date du jour au format jj/mm/aaaa, même style
+   que le sous-titre de Consolidation), un en-tête de tableau dans ce même bleu, des bandeaux de
+   catégorie dans la couleur des catégories de Consolidation, les fonds sur fond blanc, et un
+   quadrillage dont la couleur est reprise telle quelle de la bordure déjà utilisée par
+   Consolidation (pas une couleur codée en dur : elle dépend du thème propre à chaque classeur,
+   donc peut être beige, bleue, ou autre selon le fichier). Le quadrillage Excel par défaut est
+   désactivé, comme sur Consolidation, pour un fond bien blanc. Police uniforme sur toute la
+   feuille (celle utilisée par la Consolidation, pas un choix arbitraire), et colonnes
+   dimensionnées pour que chaque en-tête tienne sur une seule ligne.
 
    **Colonne Titulaire** : quand la Consolidation subdivise les contrats par titulaire (ligne
    juste au-dessus de l'en-tête « Support », ex. « Monsieur » / « Madame » / un prénom / une
