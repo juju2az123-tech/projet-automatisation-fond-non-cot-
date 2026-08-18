@@ -9,12 +9,20 @@
  *
  * Pour chaque fonds retenu, les valeurs de la prochaine échéance de rachat sont reprises
  * telles quelles depuis la base (une colonne par champ, pas de texte composé) :
- *   Date d'investissement | Rachat — ordre avant | Rachat — VL | Rachat — exécuté |
- *   Rachat — publié | Rachat — cash reçu | Pénalité de sortie
+ *   Titulaire | Fonds | ISIN | Date d'investissement | Rachat — ordre avant | Rachat — VL |
+ *   Rachat — exécuté | Rachat — publié | Rachat — cash reçu | Pénalité de sortie
  *
  * La colonne Pénalité de sortie reste VIDE quand le client n'est plus concerné (délai de
  * pénalité dépassé) ; elle affiche un message dans tous les autres cas (aucune pénalité prévue,
  * pénalité en cours, information non renseignée, ou cas ambigu à vérifier manuellement).
+ *
+ * Présentation reprise de la feuille Consolidation elle-même (même police, mêmes couleurs) :
+ * bandeaux de catégorie (beige, gras) au-dessus des fonds qu'ils regroupent, fonds sur fond
+ * blanc, en-tête de tableau dans la même couleur que celui de Consolidation. La colonne
+ * "Titulaire" indique via quel contrat (Monsieur / Madame / société / etc., lu sur la ligne
+ * juste au-dessus de l'en-tête "Support" dans Consolidation) le fonds est détenu ; un même fonds
+ * détenu par plusieurs titulaires donne une ligne par titulaire (dates et pénalité propres à
+ * chacun). Reste vide si le fichier n'a qu'un seul titulaire (pas de subdivision par contrat).
  *
  * Port JavaScript (ExcelJS, exécuté dans le navigateur) de scripts/build_client_workbook.py —
  * même logique de calcul, mêmes formules. La structure du fichier source (numéros de ligne,
@@ -26,8 +34,6 @@
  */
 (function (global) {
   "use strict";
-
-  const YELLOW_ARGB = "FFFFF2A6";
 
   // -------------------------------------------------------------------------
   // Utilitaires
@@ -189,10 +195,16 @@
     return null;
   }
 
-  /** Classe chaque ligne : 'category' (bandeau, à ignorer), 'blank', ou 'fund'. */
+  /**
+   * Classe chaque ligne : 'category' (bandeau, à ignorer), 'blank', ou 'fund'. Associe aussi à
+   * chaque ligne fonds le libellé de la dernière catégorie (bandeau) rencontrée au-dessus d'elle,
+   * pour pouvoir reproduire les mêmes bandeaux de catégorie dans la feuille générée.
+   */
   function classifyRows(ws, headerRow) {
     const categoryRows = [];
     const fundRows = [];
+    const rowToCategory = {};
+    let currentCategory = null;
     const lastRow = ws.actualRowCount || ws.rowCount;
     // headerRow+1 = ligne de total général (pas une catégorie, pas un fonds) -> ignorée
     for (let r = headerRow + 2; r <= lastRow; r++) {
@@ -200,11 +212,13 @@
       if (a.value === null || a.value === undefined || a.value === "") continue;
       if (isSolidBold(a)) {
         categoryRows.push(r);
+        currentCategory = String(a.value).trim();
       } else {
         fundRows.push(r);
+        rowToCategory[r] = currentCategory;
       }
     }
-    return { categoryRows, fundRows };
+    return { categoryRows, fundRows, rowToCategory };
   }
 
   /** Montant total détenu sur une ligne fonds : somme des colonnes "Contrat" (3..totalCol-1). */
@@ -218,6 +232,36 @@
     return sum;
   }
 
+  /**
+   * Libellé du titulaire (Monsieur / Madame / société / prénom...) associé à chaque colonne
+   * "Contrat", lu sur la ligne juste au-dessus de l'en-tête (souvent fusionnée sur plusieurs
+   * colonnes contrat). Absent ou vide pour un client à titulaire unique (pas de subdivision) :
+   * dans ce cas toutes les colonnes retombent sur "" et les montants sont simplement regroupés.
+   */
+  function detectOwnerLabels(ws, headerRow, totalCol) {
+    const labels = {};
+    const ownerRow = headerRow - 1;
+    if (!totalCol || ownerRow < 1) return labels;
+    for (let c = 3; c < totalCol; c++) {
+      const v = ws.getCell(ownerRow, c).value;
+      labels[c] = v === null || v === undefined ? "" : String(v).trim();
+    }
+    return labels;
+  }
+
+  /** Répartit le montant détenu d'une ligne fonds par titulaire (colonne "" si non subdivisé). */
+  function holdingByOwner(ws, row, totalCol, ownerLabels) {
+    if (!totalCol) return [["", null]]; // structure inconnue : une seule ligne, montant indéterminé
+    const amounts = new Map();
+    for (let c = 3; c < totalCol; c++) {
+      const v = ws.getCell(row, c).value;
+      if (typeof v !== "number") continue;
+      const label = ownerLabels[c] || "";
+      amounts.set(label, (amounts.get(label) || 0) + v);
+    }
+    return [...amounts.entries()];
+  }
+
   // -------------------------------------------------------------------------
   // Construction de la feuille "Calendrier de sortie"
   // -------------------------------------------------------------------------
@@ -229,7 +273,7 @@
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
     "rate_now",
   ];
-  const HELPER_FIRST_COL = 10; // J (visible columns now go up to I)
+  const HELPER_FIRST_COL = 11; // K (visible columns now go up to J : Titulaire ajouté en colonne A)
 
   function helperCol(name) {
     return colLetter(HELPER_FIRST_COL + HELPER_NAMES.indexOf(name));
@@ -247,11 +291,15 @@
 
     const ws = workbook.addWorksheet("Calendrier de sortie");
 
-    // 1) Repérage des fonds à retenir : détenus (montant total non nul) ET dotés d'un
-    //    calendrier de RACHAT connu dans la base Althos. Tout le reste (fonds cotés, fonds
-    //    non cotés non détenus, fonds sans calendrier de sortie) n'apparaît pas dans la feuille.
+    // 1) Repérage des fonds à retenir : détenus (montant non nul, réparti par titulaire de
+    //    contrat) ET dotés d'un calendrier de RACHAT connu dans la base Althos. Tout le reste
+    //    (fonds cotés, fonds non cotés non détenus, fonds sans calendrier de sortie) n'apparaît
+    //    pas dans la feuille. Un même fonds détenu par plusieurs titulaires (ex. Monsieur ET
+    //    Madame, chacun via son propre contrat) donne une ligne par titulaire, pour permettre une
+    //    date d'investissement et un statut de pénalité propres à chacun.
     const totalCol = findTotalColumn(srcWs, headerRow);
-    const { fundRows } = classifyRows(srcWs, headerRow);
+    const { fundRows, rowToCategory } = classifyRows(srcWs, headerRow);
+    const ownerLabels = detectOwnerLabels(srcWs, headerRow, totalCol);
 
     const selected = [];
     fundRows.forEach((srcRow) => {
@@ -259,20 +307,29 @@
       const isin = typeof isinRaw === "string" ? isinRaw.trim() : isinRaw;
       const fund = isin ? fundsByIsin.get(isin) : null;
       if (!fund || !hasRachatCalendar(calendar, isin)) return;
-      const amount = holdingAmount(srcWs, srcRow, totalCol);
-      const isHeld = amount === null || Math.abs(amount) > 0.005;
-      if (!isHeld) return;
-      selected.push({
-        isin,
-        nom: srcWs.getCell(srcRow, 1).value || fund.nom,
-        amount,
+      const nom = srcWs.getCell(srcRow, 1).value || fund.nom;
+      const category = rowToCategory[srcRow] || "";
+      holdingByOwner(srcWs, srcRow, totalCol, ownerLabels).forEach(([owner, amount]) => {
+        const isHeld = amount === null || Math.abs(amount) > 0.005;
+        if (!isHeld) return;
+        selected.push({ isin, nom, category, owner, amount });
       });
     });
 
-    // 2) En-tête du tableau (style repris de l'en-tête "Support" de la feuille source)
+    // 2) En-tête du tableau (style repris de l'en-tête "Support" de la feuille source) et police
+    //    commune à toute la feuille (celle de l'en-tête Consolidation, pas un choix arbitraire).
     const headerStyle = cloneStyle(srcWs.getCell(headerRow, 1));
+    const baseFontName = (headerStyle.font && headerStyle.font.name) || "Calibri";
+    const baseFontSize = (headerStyle.font && headerStyle.font.size) || 10;
+    const dataFont = { name: baseFontName, size: baseFontSize, bold: false };
+
+    // Style de bandeau de catégorie : repris tel quel de la première ligne de catégorie trouvée
+    // dans la Consolidation (même couleur beige/claire, même police en gras).
+    const { categoryRows } = classifyRows(srcWs, headerRow);
+    const categoryStyle = categoryRows.length ? cloneStyle(srcWs.getCell(categoryRows[0], 1)) : null;
+
     const headers = [
-      "Fonds", "ISIN", "Date d'investissement",
+      "Titulaire", "Fonds", "ISIN", "Date d'investissement",
       "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
       "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie",
     ];
@@ -283,7 +340,7 @@
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     });
     ws.getRow(1).height = 30;
-    const widths = [34, 14, 16, 16, 14, 14, 14, 14, 46];
+    const widths = [16, 34, 14, 16, 16, 14, 14, 14, 14, 46];
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     HELPER_NAMES.forEach((name) => { ws.getColumn(colNumOf(helperCol(name))).hidden = true; });
@@ -298,21 +355,34 @@
       return { ws, selectedCount: 0, fundRowsScanned: fundRows.length };
     }
 
-    // 3) Une ligne par fonds retenu, avec les formules de calcul
-    const plainFont = { name: "Arial", size: 10 };
-    selected.forEach((item, idx) => {
-      const r = idx + 2;
-      ws.getCell(r, 1).value = item.nom;
-      ws.getCell(r, 2).value = item.isin;
-      [1, 2].forEach((c) => { ws.getCell(r, c).font = plainFont; ws.getCell(r, c).alignment = { vertical: "middle" }; });
+    // 3) Bandeaux de catégorie (beige, comme dans Consolidation) + une ligne par fonds/titulaire
+    //    retenu, avec les formules de calcul.
+    let r = 2;
+    let currentCategory = undefined; // undefined != "" : force le 1er bandeau même si catégorie ""
+    selected.forEach((item) => {
+      if (categoryStyle && item.category !== currentCategory) {
+        currentCategory = item.category;
+        ws.getCell(r, 1).value = currentCategory || "Autres fonds";
+        for (let c = 1; c <= headers.length; c++) {
+          ws.getCell(r, c).style = JSON.parse(JSON.stringify(categoryStyle));
+        }
+        ws.mergeCells(r, 1, r, headers.length);
+        ws.getCell(r, 1).alignment = { vertical: "middle" };
+        ws.getRow(r).height = 20;
+        r += 1;
+      }
 
-      const dateCell = ws.getCell(r, 3);
+      ws.getCell(r, 1).value = item.owner || "";
+      ws.getCell(r, 2).value = item.nom;
+      ws.getCell(r, 3).value = item.isin;
+      [1, 2, 3].forEach((c) => { ws.getCell(r, c).font = dataFont; ws.getCell(r, c).alignment = { vertical: "middle" }; });
+
+      const dateCell = ws.getCell(r, 4);
       dateCell.numFmt = "dd/mm/yyyy";
-      dateCell.font = plainFont;
-      dateCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: YELLOW_ARGB } };
+      dateCell.font = dataFont;
 
       const b = `"${item.isin}"`;
-      const c = `$C${r}`;
+      const c = `$D${r}`;
 
       const L = helperCol("has_sortie"), M = helperCol("next_cutoff_sortie"), N = helperCol("next_val_sortie"),
         Nx = helperCol("next_exec_sortie"), Np = helperCol("next_pub_sortie"), O = helperCol("next_cash_sortie");
@@ -346,19 +416,19 @@
       setF(ws, `${AC1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("L")},MATCH(${b},${pen("A")},0)))`);
       setF(ws, `${AD1}${r}`, `IF(OR(${c}="",${Q}${r}="FUTUR"),"",_xlfn.IFS(${Q}${r}<${U1}${r},${V1}${r},${Q}${r}<${W1}${r},${X1}${r},${Q}${r}<${Y1}${r},${Z1}${r},${Q}${r}<${AA1}${r},${AB1}${r},TRUE,${AC1}${r}))`);
 
-      // Colonnes visibles D..H : valeurs reprises telles quelles de la base (une par champ).
-      [["D", M], ["E", N], ["F", Nx], ["G", Np], ["H", O]].forEach(([col, helper]) => {
+      // Colonnes visibles E..I : valeurs reprises telles quelles de la base (une par champ).
+      [["E", M], ["F", N], ["G", Nx], ["H", Np], ["I", O]].forEach(([col, helper]) => {
         setF(ws, `${col}${r}`, `${helper}${r}`);
         const cell = ws.getCell(`${col}${r}`);
         cell.numFmt = "dd/mm/yyyy";
-        cell.font = plainFont;
+        cell.font = dataFont;
         cell.alignment = { horizontal: "center", vertical: "middle" };
       });
 
       // Pénalité de sortie : vide si le client n'est plus concerné (délai dépassé) ; un
       // message dans tous les autres cas (aucune pénalité prévue, en cours, non renseignée,
       // ou ambiguë à vérifier manuellement).
-      setF(ws, `I${r}`,
+      setF(ws, `J${r}`,
         `_xlfn.IFS(` +
         `${S}${r}="aucune","Aucune pénalité de sortie."&IF(${Tc}${r}<>""," ("&${Tc}${r}&")",""),` +
         `${S}${r}="manuel","⚠️ À VÉRIFIER MANUELLEMENT : "&${Tc}${r},` +
@@ -368,11 +438,12 @@
         `${AD1}${r}>0,"⚠️ CONCERNÉ : pénalité de "&${AD1}${r}&"% (détention "&${Q}${r}&" mois). "&${Tc}${r},` +
         `TRUE,"")`
       );
-      const penCell = ws.getCell(`I${r}`);
-      penCell.font = plainFont;
+      const penCell = ws.getCell(`J${r}`);
+      penCell.font = dataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
 
       ws.getRow(r).height = 45;
+      r += 1;
     });
 
     return { ws, selectedCount: selected.length, fundRowsScanned: fundRows.length };
@@ -400,6 +471,11 @@
 
     const workbook = new global.ExcelJS.Workbook();
     await workbook.xlsx.load(arrayBuffer);
+    // Force Excel à recalculer TOUTES les formules à l'ouverture (le fichier n'a pas de
+    // calcChain.xml puisqu'aucune des deux bibliothèques utilisées ici n'exécute les formules
+    // elle-même) : évite les cellules calculées qui restent vides tant que l'utilisateur n'a pas
+    // forcé un recalcul manuel (Ctrl+Alt+F9).
+    workbook.calcProperties = { fullCalcOnLoad: true };
 
     const srcWs = findConsolidationSheet(workbook);
     if (!srcWs) {

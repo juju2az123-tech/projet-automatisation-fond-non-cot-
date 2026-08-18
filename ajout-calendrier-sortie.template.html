@@ -243,7 +243,7 @@
 
       const s = result.stats;
       const summary = s.selectedCount
-        ? '<li>' + s.selectedCount + ' fonds non coté(s) détenu(s) par ce client avec un calendrier de rachat (sortie) connu — listés dans la nouvelle feuille avec les dates de rachat (ordre avant / VL / exécuté / publié / cash reçu) et la pénalité de sortie éventuelle.</li>'
+        ? '<li>' + s.selectedCount + ' ligne(s) (fonds détenu(s) avec un calendrier de rachat connu, une ligne par titulaire le cas échéant) listée(s) dans la nouvelle feuille, groupées par catégorie, avec les dates de rachat (ordre avant / VL / exécuté / publié / cash reçu) et la pénalité de sortie éventuelle.</li>'
         : '<li>Aucun fonds détenu par ce client n\'a de calendrier de rachat connu dans la base — la feuille le précise.</li>';
       setStatus("ok",
         '<div class="line1">✓ Feuille « Calendrier de sortie » générée</div>' +

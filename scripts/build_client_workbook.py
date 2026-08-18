@@ -2,17 +2,24 @@
 """
 Ajoute au classeur de consolidation client (ex : source/ConsolidationTemplateAlthosAI_V5.xlsx)
 une nouvelle feuille "Calendrier de sortie" — un tableau COMPACT listant uniquement les fonds
-que le client détient réellement (montant total non nul dans sa consolidation) ET pour lesquels
-un calendrier de sortie officiel est connu dans la base Althos. Ni les fonds cotés, ni les fonds
-non détenus, ni les fonds non cotés sans calendrier n'apparaissent : ce n'est pas une copie de la
-feuille "Consolidation", juste la liste utile pour répondre à un client qui demande ses délais
-de sortie. Pour chaque fonds retenu, 5 colonnes :
+que le client détient réellement (montant non nul dans sa consolidation) ET pour lesquels un
+calendrier de RACHAT (sortie) officiel est connu dans la base Althos. Ni les fonds cotés, ni les
+fonds non détenus, ni les fonds sans calendrier de rachat n'apparaissent : ce n'est pas une copie
+de la feuille "Consolidation", juste la liste utile pour répondre à un client qui demande ses
+délais de sortie. Pour chaque fonds retenu :
 
+  - Titulaire (Monsieur / Madame / société... — vide si le fichier n'a qu'un seul titulaire)
+  - Fonds, ISIN
   - Date d'investissement (à saisir par le conseiller)
-  - Prochain ordre — entrée
-  - Prochain ordre — sortie
-  - Prochaine réception du cash
-  - Pénalité de sortie (statut calculé par rapport à la date d'investissement saisie)
+  - Rachat — ordre avant / VL / exécuté / publié / cash reçu (valeurs reprises telles quelles
+    de la base, pour la prochaine échéance de rachat à partir d'aujourd'hui)
+  - Pénalité de sortie (vide si le délai de pénalité est dépassé ; message dans tous les autres
+    cas, calculé par rapport à la date d'investissement saisie)
+
+Présentation reprise de la feuille Consolidation elle-même (même police, mêmes couleurs) :
+bandeaux de catégorie (beige, gras) au-dessus des fonds qu'ils regroupent, en-tête de tableau
+dans la même couleur que celui de Consolidation. Un même fonds détenu par plusieurs titulaires
+(ex. Monsieur ET Madame, chacun via son propre contrat) donne une ligne par titulaire.
 
 Toutes les colonnes calculées sont des FORMULES Excel (recalculées à chaque ouverture, à la
 date du jour), et s'appuient sur deux feuilles de données ajoutées et masquées :
@@ -31,7 +38,7 @@ from copy import copy
 from pathlib import Path
 
 import openpyxl
-from openpyxl.styles import PatternFill, Alignment, Font
+from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,8 +50,6 @@ from build_data import (  # noqa: E402
 
 CAL_FILE = ROOT / "source" / "Calendriers_de_fonds_Althos.xlsx"
 
-YELLOW = PatternFill(start_color="FFFFF2A6", end_color="FFFFF2A6", fill_type="solid")
-PLAIN_FONT = Font(name="Arial", size=10)
 
 
 # ---------------------------------------------------------------------------
@@ -69,8 +74,15 @@ def find_total_column(ws, header_row):
 
 
 def classify_rows(ws, header_row):
-    """Une ligne de catégorie (bandeau) est en gras + fond uni, sans ISIN en colonne B."""
+    """Une ligne de catégorie (bandeau) est en gras + fond uni, sans ISIN en colonne B.
+
+    Associe aussi à chaque ligne fonds le libellé de la dernière catégorie rencontrée
+    au-dessus d'elle (row_to_category), pour reproduire les mêmes bandeaux de catégorie
+    dans la feuille générée.
+    """
     cat_rows, fund_rows = [], []
+    row_to_category = {}
+    current_category = None
     for r in range(header_row + 2, ws.max_row + 1):  # header_row+1 = ligne de total général
         a = ws.cell(row=r, column=1)
         b = ws.cell(row=r, column=2)
@@ -78,9 +90,11 @@ def classify_rows(ws, header_row):
             continue
         if a.fill.patternType == "solid" and (a.font.bold or False) and b.value is None:
             cat_rows.append(r)
+            current_category = str(a.value).strip()
         else:
             fund_rows.append(r)
-    return cat_rows, fund_rows
+            row_to_category[r] = current_category
+    return cat_rows, fund_rows, row_to_category
 
 
 def holding_amount(ws, row, total_col):
@@ -93,6 +107,42 @@ def holding_amount(ws, row, total_col):
         if isinstance(v, (int, float)):
             total += v
     return total
+
+
+def detect_owner_labels(ws, header_row, total_col):
+    """Libellé du titulaire (Monsieur / Madame / société / prénom...) par colonne 'Contrat',
+    lu sur la ligne juste au-dessus de l'en-tête (souvent fusionnée sur plusieurs colonnes
+    contrat). openpyxl ne reporte la valeur que sur la cellule ancre d'une fusion : on résout
+    donc explicitement les plages fusionnées qui couvrent cette ligne. Absent ou vide pour un
+    client à titulaire unique (pas de subdivision) : toutes les colonnes retombent alors sur "".
+    """
+    labels = {}
+    owner_row = header_row - 1
+    if not total_col or owner_row < 1:
+        return labels
+    merged_lookup = {}
+    for mc in ws.merged_cells.ranges:
+        if mc.min_row <= owner_row <= mc.max_row:
+            anchor_val = ws.cell(row=mc.min_row, column=mc.min_col).value
+            for c in range(mc.min_col, mc.max_col + 1):
+                merged_lookup[c] = anchor_val
+    for c in range(3, total_col):
+        v = merged_lookup.get(c, ws.cell(row=owner_row, column=c).value)
+        labels[c] = str(v).strip() if v is not None else ""
+    return labels
+
+
+def holding_by_owner(ws, row, total_col, owner_labels):
+    """Répartit le montant détenu d'une ligne fonds par titulaire (clé "" si non subdivisé)."""
+    if not total_col:
+        return [("", None)]  # structure inconnue : une seule ligne, montant indéterminé
+    amounts = {}
+    for c in range(3, total_col):
+        v = ws.cell(row=row, column=c).value
+        if isinstance(v, (int, float)):
+            label = owner_labels.get(c, "")
+            amounts[label] = amounts.get(label, 0) + v
+    return list(amounts.items())
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +249,7 @@ HELPER_NAMES = [
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
     "rate_now",
 ]
-HELPER_FIRST_COL = 10  # J (colonnes visibles jusqu'en I désormais)
+HELPER_FIRST_COL = 11  # K (colonnes visibles jusqu'en J désormais : Titulaire ajouté en colonne A)
 
 
 def helper_col(name):
@@ -228,8 +278,13 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     if header_row is None:
         raise ValueError('En-tête "Support" introuvable dans les 15 premières lignes de la feuille Consolidation.')
     total_col = find_total_column(src_ws, header_row)
-    _, fund_rows = classify_rows(src_ws, header_row)
+    cat_rows, fund_rows, row_to_category = classify_rows(src_ws, header_row)
+    owner_labels = detect_owner_labels(src_ws, header_row, total_col)
 
+    # Fonds détenus (répartis par titulaire de contrat) ET dotés d'un calendrier de RACHAT connu.
+    # Un même fonds détenu par plusieurs titulaires (ex. Monsieur ET Madame, chacun via son
+    # propre contrat) donne une ligne par titulaire, pour une date d'investissement et un statut
+    # de pénalité propres à chacun.
     selected = []
     for r in fund_rows:
         isin_raw = src_ws.cell(row=r, column=2).value
@@ -237,13 +292,24 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         fund = funds_by_isin.get(isin) if isin else None
         if not fund or not has_rachat_calendar(calendar, isin):
             continue
-        amount = holding_amount(src_ws, r, total_col)
-        if amount is not None and abs(amount) <= 0.005:
-            continue
-        selected.append((isin, src_ws.cell(row=r, column=1).value or fund["nom"]))
+        nom = src_ws.cell(row=r, column=1).value or fund["nom"]
+        category = row_to_category.get(r) or ""
+        for owner, amount in holding_by_owner(src_ws, r, total_col, owner_labels):
+            if amount is not None and abs(amount) <= 0.005:
+                continue
+            selected.append({"isin": isin, "nom": nom, "category": category, "owner": owner})
 
+    # En-tête (style repris de l'en-tête "Support" de la Consolidation) et police commune à toute
+    # la feuille (celle de cet en-tête, pas un choix arbitraire) pour une présentation cohérente.
     header_style = copy(src_ws.cell(row=header_row, column=1)._style)  # navy header (theme1)
-    headers = ["Fonds", "ISIN", "Date d'investissement",
+    header_font = src_ws.cell(row=header_row, column=1).font
+    data_font = Font(name=header_font.name, size=header_font.size, bold=False)
+
+    # Style de bandeau de catégorie : repris tel quel de la première ligne de catégorie trouvée
+    # dans la Consolidation (même couleur beige/claire, même police en gras).
+    category_style = copy(src_ws.cell(row=cat_rows[0], column=1)._style) if cat_rows else None
+
+    headers = ["Titulaire", "Fonds", "ISIN", "Date d'investissement",
                "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
                "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie"]
     for i, label in enumerate(headers):
@@ -252,7 +318,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws.row_dimensions[1].height = 30
 
-    widths = [34, 14, 16, 16, 14, 14, 14, 14, 46]
+    widths = [16, 34, 14, 16, 16, 14, 14, 14, 14, 46]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
 
@@ -268,18 +334,32 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         ws.row_dimensions[2].height = 30
         return ws, 0, len(fund_rows)
 
-    for idx, (isin, nom) in enumerate(selected):
-        r = idx + 2
-        ws.cell(row=r, column=1, value=nom).font = PLAIN_FONT
-        ws.cell(row=r, column=2, value=isin).font = PLAIN_FONT
+    r = 2
+    current_category = object()  # sentinelle : force le 1er bandeau même si catégorie ""
+    for item in selected:
+        if category_style is not None and item["category"] != current_category:
+            current_category = item["category"]
+            cat_cell = ws.cell(row=r, column=1, value=current_category or "Autres fonds")
+            for c in range(1, len(headers) + 1):
+                ws.cell(row=r, column=c)._style = copy(category_style)
+            cat_cell.alignment = Alignment(vertical="center")
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=len(headers))
+            ws.row_dimensions[r].height = 20
+            r += 1
 
-        date_cell = ws.cell(row=r, column=3)
+        isin, nom, owner = item["isin"], item["nom"], item["owner"]
+        ws.cell(row=r, column=1, value=owner).font = data_font
+        ws.cell(row=r, column=2, value=nom).font = data_font
+        ws.cell(row=r, column=3, value=isin).font = data_font
+        for col in (1, 2, 3):
+            ws.cell(row=r, column=col).alignment = Alignment(vertical="center")
+
+        date_cell = ws.cell(row=r, column=4)
         date_cell.number_format = "dd/mm/yyyy"
-        date_cell.font = PLAIN_FONT
-        date_cell.fill = YELLOW
+        date_cell.font = data_font
 
         b = f'"{isin}"'
-        c = f"$C{r}"
+        c = f"$D{r}"
 
         L, M, N = helper_col("has_sortie"), helper_col("next_cutoff_sortie"), helper_col("next_val_sortie")
         Nx, Np, O = helper_col("next_exec_sortie"), helper_col("next_pub_sortie"), helper_col("next_cash_sortie")
@@ -321,17 +401,17 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         ws[f"{AD1}{r}"] = (f'=IF(OR({c}="",{Q}{r}="FUTUR"),"",_xlfn.IFS({Q}{r}<{U1}{r},{V1}{r},{Q}{r}<{W1}{r},{X1}{r},'
                             f'{Q}{r}<{Y1}{r},{Z1}{r},{Q}{r}<{AA1}{r},{AB1}{r},TRUE,{AC1}{r}))')
 
-        # Colonnes visibles D..H : valeurs reprises telles quelles de la base (une par champ).
-        for col_letter, helper in (("D", M), ("E", N), ("F", Nx), ("G", Np), ("H", O)):
+        # Colonnes visibles E..I : valeurs reprises telles quelles de la base (une par champ).
+        for col_letter, helper in (("E", M), ("F", N), ("G", Nx), ("H", Np), ("I", O)):
             cell = ws[f"{col_letter}{r}"]
             cell.value = f"={helper}{r}"
             cell.number_format = "dd/mm/yyyy"
-            cell.font = PLAIN_FONT
+            cell.font = data_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
 
         # Pénalité de sortie : vide si le client n'est plus concerné (délai dépassé) ; un
         # message dans tous les autres cas.
-        ws[f"I{r}"] = (
+        ws[f"J{r}"] = (
             f'=_xlfn.IFS('
             f'{S}{r}="aucune","Aucune pénalité de sortie."&IF({Tc}{r}<>""," ("&{Tc}{r}&")",""),'
             f'{S}{r}="manuel","⚠️ À VÉRIFIER MANUELLEMENT : "&{Tc}{r},'
@@ -341,11 +421,12 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             f'{AD1}{r}>0,"⚠️ CONCERNÉ : pénalité de "&{AD1}{r}&"% (détention "&{Q}{r}&" mois). "&{Tc}{r},'
             f'TRUE,"")'
         )
-        pen_cell = ws[f"I{r}"]
-        pen_cell.font = PLAIN_FONT
+        pen_cell = ws[f"J{r}"]
+        pen_cell.font = data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
         ws.row_dimensions[r].height = 45
+        r += 1
 
     return ws, len(selected), len(fund_rows)
 
@@ -366,6 +447,10 @@ def main():
 
     wb = openpyxl.load_workbook(src_path, data_only=False)
     src_ws = wb["Consolidation"]
+    # Force Excel à recalculer TOUTES les formules à l'ouverture (le fichier n'a pas de
+    # calcChain.xml puisqu'openpyxl n'exécute pas les formules lui-même) : évite les cellules
+    # calculées qui restent vides tant que l'utilisateur n'a pas forcé un recalcul manuel.
+    wb.calculation.fullCalcOnLoad = True
 
     ws_cal = write_bdd_calendrier(wb, calendar)
     ws_pen = write_bdd_penalites(wb, funds)

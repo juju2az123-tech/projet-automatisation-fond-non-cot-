@@ -34,11 +34,25 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    lesquels un **calendrier de rachat (sortie) officiel est connu** dans la base Althos — pas la
    liste complète des fonds de la consolidation, pas les fonds cotés, pas les fonds non détenus,
    pas les fonds dont seul le calendrier de souscription est connu. Pour chaque fonds retenu :
-   `Fonds`, `ISIN`, `Date d'investissement` (à saisir), `Rachat — ordre avant`, `Rachat — VL`,
-   `Rachat — exécuté`, `Rachat — publié`, `Rachat — cash reçu` (les 5 dates telles quelles dans la
-   base, pour l'échéance de rachat la plus proche à partir d'aujourd'hui), `Pénalité de sortie`
-   (vide si le délai de pénalité est dépassé, sinon un message explicite). Si aucun fonds détenu
-   n'a de calendrier de rachat connu, la feuille l'indique clairement au lieu d'un tableau vide.
+   `Titulaire` (Monsieur / Madame / société... — voir plus bas), `Fonds`, `ISIN`,
+   `Date d'investissement` (à saisir), `Rachat — ordre avant`, `Rachat — VL`, `Rachat — exécuté`,
+   `Rachat — publié`, `Rachat — cash reçu` (les 5 dates telles quelles dans la base, pour
+   l'échéance de rachat la plus proche à partir d'aujourd'hui), `Pénalité de sortie` (vide si le
+   délai de pénalité est dépassé, sinon un message explicite). Si aucun fonds détenu n'a de
+   calendrier de rachat connu, la feuille l'indique clairement au lieu d'un tableau vide.
+
+   La présentation reprend celle de la Consolidation elle-même : bandeaux de catégorie (même
+   couleur beige, même police en gras) au-dessus des fonds qu'ils regroupent, en-tête de tableau
+   dans la même couleur que celui de la Consolidation, et une police uniforme sur toute la
+   feuille (celle utilisée par la Consolidation, pas un choix arbitraire).
+
+   **Colonne Titulaire** : quand la Consolidation subdivise les contrats par titulaire (ligne
+   juste au-dessus de l'en-tête « Support », ex. « Monsieur » / « Madame » / un prénom / une
+   société), le fonds est relié au(x) titulaire(s) qui le détiennent réellement. Si un même fonds
+   est détenu à la fois par exemple via le contrat de Monsieur ET celui de Madame, il apparaît
+   sur **une ligne par titulaire** (chacune avec sa propre date d'investissement et son propre
+   statut de pénalité, puisqu'ils peuvent différer). La colonne reste vide si le fichier ne
+   subdivise pas les contrats par titulaire (client à titulaire unique).
 3. Le fichier complété se télécharge automatiquement (`nomdufichier - avec calendrier de sortie.xlsx`).
    Un bouton permet de le retélécharger si besoin.
 4. Ouvrir le fichier téléchargé, saisir la date d'investissement pour chaque fonds listé : les
@@ -52,7 +66,8 @@ des lignes de fonds. Un fonds est retenu si son ISIN correspond à un fonds pour
 de **rachat** existe dans la base Althos **et** que son montant total détenu est non nul — peu
 importe le nombre de contrats, l'ordre des fonds ou le nombre de lignes du fichier déposé. Testé
 avec succès sur deux fichiers de consolidation clients réels aux structures différentes (17 vs 9
-contrats, 483 vs 294 lignes) : 5 fonds retenus sur l'un, 9 sur l'autre.
+contrats, 483 vs 294 lignes) : 5 lignes retenues sur l'un (titulaire unique), 13 sur l'autre
+(9 fonds, dont certains détenus par plusieurs titulaires à la fois).
 
 ### Comment ça marche techniquement
 
@@ -64,11 +79,16 @@ fichiers clients réels dont la structure (nombre de contrats, position des cat�
 lignes) varie d'un dossier à l'autre.
 
 ⚠️ Même limite que pour le script Python : le recalcul automatique des formules n'a pas pu être
-vérifié par exécution réelle dans cet environnement (LibreOffice indisponible ici — voir plus
-bas). Les formules ont été relues manuellement et testées de bout en bout (dépôt → génération →
-relecture de la structure et des formules) sur les deux fichiers clients réels fournis, sans
-erreur JavaScript ni incohérence de structure détectée. Vérifiez à l'ouverture chez vous qu'aucune
-cellule n'affiche `#NAME?` / `#REF!` / `#VALUE!`.
+vérifié par exécution réelle d'Excel dans cet environnement (LibreOffice indisponible ici — voir
+plus bas). Les formules ont été relues manuellement, testées de bout en bout (dépôt → génération →
+relecture de la structure et des formules) sur les deux fichiers clients réels fournis, et
+vérifiées avec un moteur de calcul de formules indépendant ([HyperFormula](https://hyperformula.handsontable.com/))
+qui les exécute réellement à partir des données du fichier généré — sans erreur ni incohérence
+détectée. Le fichier généré ne contenant pas de `calcChain.xml` (ni ExcelJS ni openpyxl n'exécutent
+eux-mêmes les formules), l'indicateur `fullCalcOnLoad` est explicitement activé dans le classeur
+pour qu'Excel recalcule tout à l'ouverture plutôt que de se fier à un éventuel calcul partiel.
+Vérifiez malgré tout à l'ouverture chez vous qu'aucune cellule n'affiche `#NAME?` / `#REF!` /
+`#VALUE!` (ou ne reste vide) — au besoin un `Ctrl+Alt+F9` force un recalcul complet.
 
 ## Utilisation (page web de saisie manuelle — `index.html`)
 
@@ -203,6 +223,7 @@ la feuille `Consolidation`.
 
 | Colonne | Contenu |
 |---|---|
+| Titulaire | Contrat détenteur (Monsieur / Madame / société...), lu au-dessus de l'en-tête « Support » ; vide si le fichier n'a qu'un seul titulaire |
 | Fonds / ISIN | Nom et ISIN du fonds retenu |
 | Date d'investissement | 🟡 à saisir par le conseiller |
 | Rachat — ordre avant | Date de cut-off de la prochaine échéance de rachat (à partir d'aujourd'hui) |
@@ -213,7 +234,10 @@ la feuille `Consolidation`.
 | Pénalité de sortie | Vide si le délai de pénalité est dépassé (non concerné) ; sinon message explicite (concerné, aucune pénalité prévue, à vérifier manuellement, ou non renseignée), calculé à partir de la date d'investissement saisie |
 
 Si aucun fonds détenu n'a de calendrier de rachat connu, la feuille l'indique clairement au lieu
-d'un tableau vide.
+d'un tableau vide. Un même fonds détenu via plusieurs titulaires (ex. Monsieur ET Madame, chacun
+via son propre contrat) apparaît sur une ligne par titulaire. La présentation (bandeaux de
+catégorie beige, en-tête coloré, police) reprend celle de la feuille Consolidation — voir la
+section dédiée à `ajout-calendrier-sortie.html` plus haut pour le détail.
 
 ### Générer / régénérer la feuille
 
