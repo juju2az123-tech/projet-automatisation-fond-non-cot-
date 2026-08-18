@@ -10154,7 +10154,9 @@ window.FUNDS_DATA = {
   /** Zone d'impression = tout le tableau, mise à l'échelle sur une page en largeur, paysage —
    *  comme sur la feuille Consolidation. */
   function applyPrintSetup(ws, lastRow, lastCol) {
-    ws.pageSetup.printArea = `A1:${colLetter(lastCol)}${lastRow}`;
+    // Marge de 2 lignes et 2 colonnes entre le tableau et le contour de la zone d'impression,
+    // pour que celui-ci ne colle pas directement aux bordures du tableau.
+    ws.pageSetup.printArea = `A1:${colLetter(lastCol + 2)}${lastRow + 2}`;
     ws.pageSetup.orientation = "landscape";
     ws.pageSetup.fitToPage = true;
     ws.pageSetup.fitToWidth = 1;

@@ -489,8 +489,9 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
 
 def apply_print_setup(ws, last_row, last_col):
     """Zone d'impression = tout le tableau, mise à l'échelle sur une page en largeur, paysage —
-    comme sur la feuille Consolidation."""
-    ws.print_area = f"A1:{get_column_letter(last_col)}{last_row}"
+    comme sur la feuille Consolidation. Marge de 2 lignes et 2 colonnes entre le tableau et le
+    contour de la zone d'impression, pour que celui-ci ne colle pas directement aux bordures."""
+    ws.print_area = f"A1:{get_column_letter(last_col + 2)}{last_row + 2}"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
