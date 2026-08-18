@@ -397,6 +397,7 @@
       ws.mergeCells(FIRST_DATA_ROW, 1, FIRST_DATA_ROW, headers.length);
       ws.getCell(FIRST_DATA_ROW, 1).alignment = { wrapText: true, vertical: "middle" };
       ws.getRow(FIRST_DATA_ROW).height = 30;
+      applyPrintSetup(ws, FIRST_DATA_ROW, headers.length);
       return { ws, selectedCount: 0, fundRowsScanned: fundRows.length };
     }
 
@@ -502,7 +503,18 @@
       r += 1;
     });
 
+    applyPrintSetup(ws, r - 1, headers.length);
     return { ws, selectedCount: selected.length, fundRowsScanned: fundRows.length };
+  }
+
+  /** Zone d'impression = tout le tableau, mise à l'échelle sur une page en largeur, paysage —
+   *  comme sur la feuille Consolidation. */
+  function applyPrintSetup(ws, lastRow, lastCol) {
+    ws.pageSetup.printArea = `A1:${colLetter(lastCol)}${lastRow}`;
+    ws.pageSetup.orientation = "landscape";
+    ws.pageSetup.fitToPage = true;
+    ws.pageSetup.fitToWidth = 1;
+    ws.pageSetup.fitToHeight = 0;
   }
 
   function setF(ws, addr, formula) {

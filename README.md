@@ -51,7 +51,10 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    donc peut être beige, bleue, ou autre selon le fichier). Le quadrillage Excel par défaut est
    désactivé, comme sur Consolidation, pour un fond bien blanc. Police uniforme sur toute la
    feuille (celle utilisée par la Consolidation, pas un choix arbitraire), et colonnes
-   dimensionnées pour que chaque en-tête tienne sur une seule ligne.
+   dimensionnées pour que chaque en-tête tienne sur une seule ligne. La zone d'impression est
+   définie sur tout le tableau généré, en orientation paysage et mise à l'échelle sur une page en
+   largeur (comme sur Consolidation) — imprimer ou exporter en PDF depuis cette feuille donne donc
+   directement un rendu propre, sans réglage manuel.
 
    **Colonne Titulaire** : quand la Consolidation subdivise les contrats par titulaire (ligne
    juste au-dessus de l'en-tête « Support », ex. « Monsieur » / « Madame » / un prénom / une

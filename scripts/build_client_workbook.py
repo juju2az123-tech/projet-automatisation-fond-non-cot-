@@ -371,6 +371,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         ws.merge_cells(start_row=FIRST_DATA_ROW, start_column=1, end_row=FIRST_DATA_ROW, end_column=len(headers))
         ws.cell(row=FIRST_DATA_ROW, column=1).alignment = Alignment(wrap_text=True, vertical="center")
         ws.row_dimensions[FIRST_DATA_ROW].height = 30
+        apply_print_setup(ws, FIRST_DATA_ROW, len(headers))
         return ws, 0, len(fund_rows)
 
     r = FIRST_DATA_ROW
@@ -479,7 +480,18 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         ws.row_dimensions[r].height = 45
         r += 1
 
+    apply_print_setup(ws, r - 1, len(headers))
     return ws, len(selected), len(fund_rows)
+
+
+def apply_print_setup(ws, last_row, last_col):
+    """Zone d'impression = tout le tableau, mise à l'échelle sur une page en largeur, paysage —
+    comme sur la feuille Consolidation."""
+    ws.print_area = f"A1:{get_column_letter(last_col)}{last_row}"
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
 
 
 def main():
