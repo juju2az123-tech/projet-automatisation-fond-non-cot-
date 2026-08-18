@@ -487,10 +487,15 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     return ws, len(selected), len(fund_rows)
 
 
-def apply_print_setup(ws, last_row, last_col):
+def apply_print_setup(ws, last_row, last_visible_col):
     """Zone d'impression = tout le tableau, mise à l'échelle sur une page en largeur, paysage —
-    comme sur la feuille Consolidation. Marge de 2 lignes et 2 colonnes entre le tableau et le
-    contour de la zone d'impression, pour que celui-ci ne colle pas directement aux bordures."""
+    comme sur la feuille Consolidation. Marge de 2 lignes/colonnes entre le contenu et le contour
+    de la zone d'impression. Pour les colonnes, "le contenu" inclut les colonnes d'aide masquées
+    (jusqu'à HELPER_FIRST_COL + len(HELPER_NAMES) - 1), pas seulement les colonnes visibles :
+    sinon le contour passerait au milieu de colonnes masquées au lieu de se terminer 2 colonnes
+    après elles."""
+    last_helper_col = HELPER_FIRST_COL + len(HELPER_NAMES) - 1
+    last_col = max(last_visible_col, last_helper_col)
     ws.print_area = f"A1:{get_column_letter(last_col + 2)}{last_row + 2}"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth = 1

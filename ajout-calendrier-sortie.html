@@ -10153,9 +10153,13 @@ window.FUNDS_DATA = {
 
   /** Zone d'impression = tout le tableau, mise à l'échelle sur une page en largeur, paysage —
    *  comme sur la feuille Consolidation. */
-  function applyPrintSetup(ws, lastRow, lastCol) {
-    // Marge de 2 lignes et 2 colonnes entre le tableau et le contour de la zone d'impression,
-    // pour que celui-ci ne colle pas directement aux bordures du tableau.
+  function applyPrintSetup(ws, lastRow, lastVisibleCol) {
+    // Marge de 2 lignes/colonnes entre le contenu et le contour de la zone d'impression. Pour
+    // les colonnes, "le contenu" inclut les colonnes d'aide masquées (jusqu'à HELPER_FIRST_COL +
+    // HELPER_NAMES.length - 1), pas seulement les colonnes visibles : sinon le contour passerait
+    // au milieu de colonnes masquées au lieu de se terminer 2 colonnes après elles.
+    const lastHelperCol = HELPER_FIRST_COL + HELPER_NAMES.length - 1;
+    const lastCol = Math.max(lastVisibleCol, lastHelperCol);
     ws.pageSetup.printArea = `A1:${colLetter(lastCol + 2)}${lastRow + 2}`;
     ws.pageSetup.orientation = "landscape";
     ws.pageSetup.fitToPage = true;
