@@ -41,10 +41,12 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    délai de pénalité est dépassé, sinon un message explicite). Si aucun fonds détenu n'a de
    calendrier de rachat connu, la feuille l'indique clairement au lieu d'un tableau vide.
 
-   La présentation reprend celle de la Consolidation elle-même : bandeaux de catégorie (même
-   couleur beige, même police en gras) au-dessus des fonds qu'ils regroupent, en-tête de tableau
-   dans la même couleur que celui de la Consolidation, et une police uniforme sur toute la
-   feuille (celle utilisée par la Consolidation, pas un choix arbitraire).
+   La présentation reprend celle de la Consolidation elle-même : un bandeau de titre « Calendrier
+   des délais de sortie » en haut de la feuille (même couleur, même police que le titre de
+   Consolidation), un en-tête de tableau et des bandeaux de catégorie en beige (même couleur que
+   les catégories de Consolidation), les fonds sur fond blanc avec un quadrillage fin dans ce même
+   beige, et une police uniforme sur toute la feuille (celle utilisée par la Consolidation, pas un
+   choix arbitraire).
 
    **Colonne Titulaire** : quand la Consolidation subdivise les contrats par titulaire (ligne
    juste au-dessus de l'en-tête « Support », ex. « Monsieur » / « Madame » / un prénom / une

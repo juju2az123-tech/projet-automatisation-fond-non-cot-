@@ -38,7 +38,7 @@ from copy import copy
 from pathlib import Path
 
 import openpyxl
-from openpyxl.styles import Alignment, Font
+from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -299,24 +299,40 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
                 continue
             selected.append({"isin": isin, "nom": nom, "category": category, "owner": owner})
 
-    # En-tête (style repris de l'en-tête "Support" de la Consolidation) et police commune à toute
-    # la feuille (celle de cet en-tête, pas un choix arbitraire) pour une présentation cohérente.
+    # Présentation "à la Althos" : bandeau de titre (repris tel quel du titre de Consolidation,
+    # ligne 1 — même couleur, même police), en-tête de tableau et bandeaux de catégorie en beige
+    # (repris de la couleur des catégories dans Consolidation), fonds sur fond blanc, quadrillage
+    # fin dans le même beige. Police commune à toute la feuille (celle de l'en-tête Consolidation,
+    # pas un choix arbitraire).
     header_style = copy(src_ws.cell(row=header_row, column=1)._style)  # navy header (theme1)
     header_font = src_ws.cell(row=header_row, column=1).font
     data_font = Font(name=header_font.name, size=header_font.size, bold=False)
 
-    # Style de bandeau de catégorie : repris tel quel de la première ligne de catégorie trouvée
-    # dans la Consolidation (même couleur beige/claire, même police en gras).
+    title_style = copy(src_ws.cell(row=1, column=1)._style)
+    # Style de bandeau de catégorie / en-tête : repris tel quel de la première ligne de catégorie
+    # trouvée dans la Consolidation (même couleur beige, même police en gras).
     category_style = copy(src_ws.cell(row=cat_rows[0], column=1)._style) if cat_rows else None
+    beige_side = Side(style="thin", color="FFDDCCB8")
+    grid_border = Border(top=beige_side, left=beige_side, bottom=beige_side, right=beige_side)
+    white_fill = PatternFill(start_color="FFFFFFFF", end_color="FFFFFFFF", fill_type="solid")
 
     headers = ["Titulaire", "Fonds", "ISIN", "Date d'investissement",
                "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
                "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie"]
+
+    title_cell = ws.cell(row=1, column=1, value="Calendrier des délais de sortie")
+    title_cell._style = copy(title_style)
+    title_cell.alignment = Alignment(horizontal="left", vertical="center")
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    ws.row_dimensions[1].height = src_ws.row_dimensions[1].height or 24
+
     for i, label in enumerate(headers):
-        cell = ws.cell(row=1, column=i + 1, value=label)
-        cell._style = copy(header_style)
+        cell = ws.cell(row=2, column=i + 1, value=label)
+        cell._style = copy(category_style) if category_style is not None else copy(header_style)
+        cell.font = Font(name=header_font.name, size=header_font.size, bold=True)
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    ws.row_dimensions[1].height = 30
+        cell.border = grid_border
+    ws.row_dimensions[2].height = 30
 
     widths = [16, 34, 14, 16, 16, 14, 14, 14, 14, 46]
     for i, w in enumerate(widths):
@@ -328,13 +344,13 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     if not selected:
         msg = ("Aucun fonds avec calendrier de sortie (rachat) connu n'est actuellement détenu par "
                'ce client (montant total nul, ou fonds hors périmètre "fonds non cotés suivis").')
-        ws.cell(row=2, column=1, value=msg)
-        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
-        ws.cell(row=2, column=1).alignment = Alignment(wrap_text=True, vertical="center")
-        ws.row_dimensions[2].height = 30
+        ws.cell(row=3, column=1, value=msg)
+        ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(headers))
+        ws.cell(row=3, column=1).alignment = Alignment(wrap_text=True, vertical="center")
+        ws.row_dimensions[3].height = 30
         return ws, 0, len(fund_rows)
 
-    r = 2
+    r = 3
     current_category = object()  # sentinelle : force le 1er bandeau même si catégorie ""
     for item in selected:
         if category_style is not None and item["category"] != current_category:
@@ -342,10 +358,15 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             cat_cell = ws.cell(row=r, column=1, value=current_category or "Autres fonds")
             for c in range(1, len(headers) + 1):
                 ws.cell(row=r, column=c)._style = copy(category_style)
+                ws.cell(row=r, column=c).border = grid_border
             cat_cell.alignment = Alignment(vertical="center")
             ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=len(headers))
             ws.row_dimensions[r].height = 20
             r += 1
+
+        for c in range(1, len(headers) + 1):
+            ws.cell(row=r, column=c).fill = white_fill
+            ws.cell(row=r, column=c).border = grid_border
 
         isin, nom, owner = item["isin"], item["nom"], item["owner"]
         ws.cell(row=r, column=1, value=owner).font = data_font
