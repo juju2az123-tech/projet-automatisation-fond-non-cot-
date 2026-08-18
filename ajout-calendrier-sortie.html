@@ -9939,8 +9939,11 @@ window.FUNDS_DATA = {
     const ws = workbook.addWorksheet("Calendrier de sortie");
     // Quadrillage Excel par défaut désactivé, comme sur Consolidation : sans ça, le fond gris
     // clair du quadrillage standard reste visible autour des bordures de couleur ajoutées plus
-    // bas, et le rendu ne paraît pas "blanc propre" comme sur Consolidation.
-    ws.views = [{ showGridLines: false }];
+    // bas, et le rendu ne paraît pas "blanc propre" comme sur Consolidation. Vue "aperçu des
+    // sauts de page" (style: "pageBreakPreview", propriété interne d'ExcelJS pour l'attribut XML
+    // <sheetView view="pageBreakPreview">), comme sur Consolidation : c'est ce qui affiche
+    // automatiquement le contour bleu de la zone d'impression en vue Normale.
+    ws.views = [{ showGridLines: false, style: "pageBreakPreview" }];
 
     // 1) Repérage des fonds à retenir : détenus (montant non nul, réparti par titulaire de
     //    contrat) ET dotés d'un calendrier de RACHAT connu dans la base Althos. Tout le reste

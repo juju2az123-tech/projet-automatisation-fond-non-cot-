@@ -331,6 +331,9 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     grid_border = Border(top=grid_side, left=grid_side, bottom=grid_side, right=grid_side)
     white_fill = PatternFill(start_color="FFFFFFFF", end_color="FFFFFFFF", fill_type="solid")
     ws.sheet_view.showGridLines = False  # comme Consolidation : pas de quadrillage Excel par défaut
+    # Vue "aperçu des sauts de page", comme Consolidation : c'est ce qui affiche automatiquement
+    # le contour bleu de la zone d'impression en vue Normale.
+    ws.sheet_view.view = "pageBreakPreview"
 
     headers = ["Titulaire", "Fonds", "ISIN", "Date d'investissement",
                "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",

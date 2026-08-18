@@ -54,7 +54,9 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    dimensionnées pour que chaque en-tête tienne sur une seule ligne. La zone d'impression est
    définie sur tout le tableau généré, en orientation paysage et mise à l'échelle sur une page en
    largeur (comme sur Consolidation) — imprimer ou exporter en PDF depuis cette feuille donne donc
-   directement un rendu propre, sans réglage manuel.
+   directement un rendu propre, sans réglage manuel. La feuille s'ouvre aussi en vue « aperçu des
+   sauts de page » (comme Consolidation), ce qui affiche automatiquement le contour bleu de la
+   zone d'impression dès l'ouverture, sans manipulation.
 
    **Colonne Titulaire** : quand la Consolidation subdivise les contrats par titulaire (ligne
    juste au-dessus de l'en-tête « Support », ex. « Monsieur » / « Madame » / un prénom / une
