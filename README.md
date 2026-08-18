@@ -1,12 +1,17 @@
 # Consolidation Fonds Non Cotés — Althos
 
 Trois outils pour le même besoin : compléter la consolidation d'un client avec, pour chaque fonds
-non coté détenu :
+non coté **détenu par ce client et disposant d'un calendrier de rachat (sortie) connu** :
 
-- la date du **prochain ordre d'entrée** (souscription) possible,
-- la date du **prochain ordre de sortie** (rachat) possible,
-- la date de la **prochaine réception du cash** suite à un rachat,
-- si le **client est concerné par une pénalité de sortie** au vu de sa date d'investissement.
+- les 5 dates du **calendrier de rachat** telles qu'enregistrées dans la base Althos : ordre
+  avant (cut-off), VL, exécuté, publié, cash reçu,
+- si le **client est concerné par une pénalité de sortie** au vu de sa date d'investissement (la
+  cellule reste **vide** dès que le délai de pénalité est dépassé — un message n'apparaît que
+  s'il y a quelque chose à signaler : concerné, aucune pénalité prévue, à vérifier manuellement,
+  ou non renseignée).
+
+Il n'y a volontairement **aucune colonne pour les ordres d'entrée (souscription)** : seul le
+rachat (sortie) est traité.
 
 - **`ajout-calendrier-sortie.html`** ⭐ — le conseiller **dépose son fichier de consolidation
   client réel** (glisser-déposer) ; la feuille « Calendrier de sortie » est générée et
@@ -26,26 +31,28 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
 2. Le traitement est automatique : une feuille **« Calendrier de sortie »** est ajoutée juste
    après la feuille « Consolidation ». C'est un tableau **compact** listant uniquement les fonds
    que ce client **détient réellement** (montant total non nul dans sa consolidation) **et** pour
-   lesquels un **calendrier de sortie officiel est connu** dans la base Althos — pas la liste
-   complète des fonds de la consolidation, pas les fonds cotés, pas les fonds non détenus. Pour
-   chaque fonds retenu : `Fonds`, `ISIN`, `Date d'investissement` (à saisir), `Prochain ordre —
-   entrée`, `Prochain ordre — sortie`, `Prochaine réception du cash`, `Pénalité de sortie`. Si
-   aucun fonds détenu n'a de calendrier connu, la feuille l'indique clairement au lieu d'un
-   tableau vide.
+   lesquels un **calendrier de rachat (sortie) officiel est connu** dans la base Althos — pas la
+   liste complète des fonds de la consolidation, pas les fonds cotés, pas les fonds non détenus,
+   pas les fonds dont seul le calendrier de souscription est connu. Pour chaque fonds retenu :
+   `Fonds`, `ISIN`, `Date d'investissement` (à saisir), `Rachat — ordre avant`, `Rachat — VL`,
+   `Rachat — exécuté`, `Rachat — publié`, `Rachat — cash reçu` (les 5 dates telles quelles dans la
+   base, pour l'échéance de rachat la plus proche à partir d'aujourd'hui), `Pénalité de sortie`
+   (vide si le délai de pénalité est dépassé, sinon un message explicite). Si aucun fonds détenu
+   n'a de calendrier de rachat connu, la feuille l'indique clairement au lieu d'un tableau vide.
 3. Le fichier complété se télécharge automatiquement (`nomdufichier - avec calendrier de sortie.xlsx`).
    Un bouton permet de le retélécharger si besoin.
 4. Ouvrir le fichier téléchargé, saisir la date d'investissement pour chaque fonds listé : les
-   4 dernières colonnes se recalculent automatiquement (formules Excel).
+   5 dates de rachat et la pénalité de sortie se recalculent automatiquement (formules Excel), à
+   partir des échéances les plus proches **de la date du jour** au moment de l'ouverture.
 
 **Comment ça détecte les fonds à retenir ?** Aucune structure de fichier n'est supposée fixe :
 l'outil repère la feuille via son en-tête (« Support » en colonne A), la colonne « TOTAL » (montant
 détenu, tous contrats confondus), puis distingue les lignes de catégorie (bandeau en gras/coloré)
 des lignes de fonds. Un fonds est retenu si son ISIN correspond à un fonds pour lequel un calendrier
-de sortie existe dans la base Althos **et** que son montant total détenu est non nul — peu importe
-le nombre de contrats, l'ordre des fonds ou le nombre de lignes du fichier déposé. Testé avec succès
-sur deux fichiers de consolidation clients réels aux structures différentes (17 vs 9 contrats, 483
-vs 294 lignes) : 8 fonds retenus sur l'un (102 fonds non cotés présents dans le fichier, dont
-seulement 8 à la fois détenus et dotés d'un calendrier), 5 sur l'autre.
+de **rachat** existe dans la base Althos **et** que son montant total détenu est non nul — peu
+importe le nombre de contrats, l'ordre des fonds ou le nombre de lignes du fichier déposé. Testé
+avec succès sur deux fichiers de consolidation clients réels aux structures différentes (17 vs 9
+contrats, 483 vs 294 lignes) : 5 fonds retenus sur l'un, 9 sur l'autre.
 
 ### Comment ça marche techniquement
 
@@ -165,14 +172,21 @@ Le texte brut d'origine est **toujours affiché** sous le statut calculé, pour 
 vérification en un coup d'œil avant de répondre à un client — conformément à la procédure de
 vérification par sondage décrite dans la feuille « Lisez-moi » du classeur Calendriers.
 
-### Comment les prochaines dates d'ordre sont calculées
+**La cellule « Pénalité de sortie » n'est laissée vide que dans un seul cas : le client n'est
+plus concerné parce que le délai de pénalité (`seuil` / `soft` / `degressif`) est dépassé.** Dans
+tous les autres cas (aucune pénalité prévue pour ce fonds, cas `manuel` à vérifier, pénalité non
+renseignée, date d'investissement pas encore saisie, ou concerné par une pénalité en cours), un
+message explicite est affiché — rien n'est jamais silencieusement omis.
 
-Pour un fonds donné et une direction (entrée = Souscription, sortie = Rachat), l'outil parcourt
-les échéances mensuelles du calendrier (triées par date), et retient la première dont la date
-de cut-off est encore dans le futur au moment de la consultation (date du navigateur de
-l'utilisateur, recalculée à chaque ouverture — jamais figée). Si le calendrier connu ne
-couvre plus la période courante (ex. calendrier 2025 non encore renouvelé pour 2026), un
-message invite à demander le calendrier à jour plutôt que d'afficher une date erronée.
+### Comment les prochaines dates de rachat sont calculées
+
+Pour un fonds donné, l'outil parcourt les échéances mensuelles de type **Rachat** du calendrier,
+et retient la première dont la date de cut-off (« ordre avant ») est encore dans le futur **au
+moment de la consultation** (date du jour, recalculée à chaque ouverture du fichier — jamais
+figée). Les 5 dates (ordre avant, VL, exécuté, publié, cash reçu) affichées sont celles de cette
+échéance, reprises telles quelles depuis la base — aucune date composée ou recalculée. Si le
+calendrier connu ne couvre plus la période courante (ex. calendrier 2025 non encore renouvelé
+pour 2026), les colonnes restent vides plutôt que d'afficher une date erronée.
 
 ## Utilisation (classeur Excel du conseiller — équivalent en ligne de commande)
 
@@ -182,21 +196,24 @@ contrat par colonne, avec les montants investis, et une colonne `TOTAL`). `scrip
 prend ce classeur et lui ajoute une nouvelle feuille **« Calendrier de sortie »**, positionnée
 juste après `Consolidation` — même logique que `ajout-calendrier-sortie.html` (voir plus haut) :
 un tableau **compact**, listant uniquement les fonds que ce client **détient réellement**
-(colonne `TOTAL` non nulle) **et** pour lesquels un **calendrier de sortie est connu**. Ni les
-fonds cotés, ni les fonds non détenus, ni les fonds non cotés sans calendrier n'apparaissent —
-ce n'est pas une copie de la feuille `Consolidation`.
+(colonne `TOTAL` non nulle) **et** pour lesquels un **calendrier de rachat (sortie) est connu**.
+Ni les fonds cotés, ni les fonds non détenus, ni les fonds non cotés sans calendrier de rachat
+n'apparaissent, et il n'y a pas de colonnes pour les ordres d'entrée — ce n'est pas une copie de
+la feuille `Consolidation`.
 
 | Colonne | Contenu |
 |---|---|
 | Fonds / ISIN | Nom et ISIN du fonds retenu |
 | Date d'investissement | 🟡 à saisir par le conseiller |
-| Prochain ordre — entrée | Cut-off + date de valorisation (VL) de la prochaine fenêtre de souscription |
-| Prochain ordre — sortie | Cut-off + date de valorisation (VL) de la prochaine fenêtre de rachat |
-| Prochaine réception du cash | Date de règlement du prochain rachat |
-| Pénalité de sortie | Statut calculé (concerné / non concerné / à vérifier) à partir de la date d'investissement saisie |
+| Rachat — ordre avant | Date de cut-off de la prochaine échéance de rachat (à partir d'aujourd'hui) |
+| Rachat — VL | Date de valorisation associée |
+| Rachat — exécuté | Date d'exécution de l'ordre |
+| Rachat — publié | Date de publication de la VL |
+| Rachat — cash reçu | Date de règlement / réception du cash |
+| Pénalité de sortie | Vide si le délai de pénalité est dépassé (non concerné) ; sinon message explicite (concerné, aucune pénalité prévue, à vérifier manuellement, ou non renseignée), calculé à partir de la date d'investissement saisie |
 
-Si aucun fonds détenu n'a de calendrier connu, la feuille l'indique clairement au lieu d'un
-tableau vide.
+Si aucun fonds détenu n'a de calendrier de rachat connu, la feuille l'indique clairement au lieu
+d'un tableau vide.
 
 ### Générer / régénérer la feuille
 
@@ -227,9 +244,10 @@ Le script ajoute aussi deux feuilles de données masquées, alimentées par
   "seuil en mois → taux" + un taux "au-delà" (`build_tier_columns()`), pour rester calculable par
   une formule `IFS` en cascade sans jamais recourir à une formule matricielle (CSE).
 
-Les 5 colonnes visibles s'appuient sur des colonnes de calcul intermédiaires masquées (mois de
-détention, prochaine échéance trouvée via `MINIFS`/`MAXIFS`, palier de pénalité applicable…). Tout
-se recalcule automatiquement à l'ouverture du fichier, à la date du jour — rien n'est figé.
+Les 6 colonnes calculées visibles (les 5 dates de rachat + la pénalité) s'appuient sur des
+colonnes de calcul intermédiaires masquées (prochaine échéance de rachat trouvée via
+`COUNTIFS`/`MINIFS` à partir d'aujourd'hui, mois de détention, palier de pénalité applicable…).
+Tout se recalcule automatiquement à l'ouverture du fichier, à la date du jour — rien n'est figé.
 
 **⚠️ Limite connue de cette tâche : le recalcul automatique n'a pas pu être vérifié dans cet
 environnement.** LibreOffice (utilisé habituellement pour valider les formules avant livraison)

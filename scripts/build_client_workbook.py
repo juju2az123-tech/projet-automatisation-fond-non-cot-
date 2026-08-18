@@ -193,13 +193,13 @@ def write_bdd_penalites(wb, funds):
 # ---------------------------------------------------------------------------
 
 HELPER_NAMES = [
-    "has_entree", "next_cutoff_entree", "next_val_entree", "max_cutoff_entree",
-    "has_sortie", "next_cutoff_sortie", "next_val_sortie", "next_cash_sortie", "max_cutoff_sortie",
+    "has_sortie", "next_cutoff_sortie", "next_val_sortie", "next_exec_sortie",
+    "next_pub_sortie", "next_cash_sortie",
     "months_held", "pen_found", "kind", "raw",
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
     "rate_now",
 ]
-HELPER_FIRST_COL = 8  # H
+HELPER_FIRST_COL = 10  # J (colonnes visibles jusqu'en I désormais)
 
 
 def helper_col(name):
@@ -207,7 +207,13 @@ def helper_col(name):
     return get_column_letter(idx)
 
 
-def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row, funds_by_isin):
+def has_rachat_calendar(calendar, isin):
+    """Un fonds n'a de calendrier "de sortie" que s'il a des échéances de type Rachat."""
+    by_type = calendar.get(isin) if isin else None
+    return bool(by_type and (by_type.get("Rachat") or by_type.get("Souscription et rachat")))
+
+
+def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_isin):
     def cal(col):
         return f"BDD_Calendrier!${col}$2:${col}${cal_last_row}"
 
@@ -229,7 +235,7 @@ def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row, funds_by_isin):
         isin_raw = src_ws.cell(row=r, column=2).value
         isin = isin_raw.strip() if isinstance(isin_raw, str) else isin_raw
         fund = funds_by_isin.get(isin) if isin else None
-        if not fund or not fund.get("hasCalendar"):
+        if not fund or not has_rachat_calendar(calendar, isin):
             continue
         amount = holding_amount(src_ws, r, total_col)
         if amount is not None and abs(amount) <= 0.005:
@@ -238,15 +244,15 @@ def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row, funds_by_isin):
 
     header_style = copy(src_ws.cell(row=header_row, column=1)._style)  # navy header (theme1)
     headers = ["Fonds", "ISIN", "Date d'investissement",
-               "Prochain ordre — entrée", "Prochain ordre — sortie",
-               "Prochaine réception du cash", "Pénalité de sortie"]
+               "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
+               "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie"]
     for i, label in enumerate(headers):
         cell = ws.cell(row=1, column=i + 1, value=label)
         cell._style = copy(header_style)
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws.row_dimensions[1].height = 30
 
-    widths = [34, 14, 16, 32, 32, 30, 46]
+    widths = [34, 14, 16, 16, 14, 14, 14, 14, 46]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
 
@@ -254,8 +260,8 @@ def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row, funds_by_isin):
         ws.column_dimensions[helper_col(name)].hidden = True
 
     if not selected:
-        msg = ("Aucun fonds avec calendrier de sortie connu n'est actuellement détenu par ce "
-               'client (montant total nul, ou fonds hors périmètre "fonds non cotés suivis").')
+        msg = ("Aucun fonds avec calendrier de sortie (rachat) connu n'est actuellement détenu par "
+               'ce client (montant total nul, ou fonds hors périmètre "fonds non cotés suivis").')
         ws.cell(row=2, column=1, value=msg)
         ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
         ws.cell(row=2, column=1).alignment = Alignment(wrap_text=True, vertical="center")
@@ -271,13 +277,12 @@ def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row, funds_by_isin):
         date_cell.number_format = "dd/mm/yyyy"
         date_cell.font = PLAIN_FONT
         date_cell.fill = YELLOW
-        ws.row_dimensions[r].height = 60  # room for the wrapped multi-line status text
 
         b = f'"{isin}"'
         c = f"$C{r}"
 
-        H, I, J, K = helper_col("has_entree"), helper_col("next_cutoff_entree"), helper_col("next_val_entree"), helper_col("max_cutoff_entree")
-        L, M, N, O, P = helper_col("has_sortie"), helper_col("next_cutoff_sortie"), helper_col("next_val_sortie"), helper_col("next_cash_sortie"), helper_col("max_cutoff_sortie")
+        L, M, N = helper_col("has_sortie"), helper_col("next_cutoff_sortie"), helper_col("next_val_sortie")
+        Nx, Np, O = helper_col("next_exec_sortie"), helper_col("next_pub_sortie"), helper_col("next_cash_sortie")
         Q = helper_col("months_held")
         R = helper_col("pen_found")
         S = helper_col("kind")
@@ -287,23 +292,18 @@ def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row, funds_by_isin):
                                                   helper_col("max4"), helper_col("rate4"), helper_col("rate5"))
         AD1 = helper_col("rate_now")
 
-        ws[f"{H}{r}"] = f'=COUNTIFS({cal("A")},{b},{cal("C")},"Souscription")'
-        ws[f"{I}{r}"] = (f'=IF({H}{r}=0,"",IFERROR(_xlfn.MINIFS({cal("D")},'
-                          f'{cal("A")},{b},{cal("C")},"Souscription",'
-                          f'{cal("D")},">="&TODAY()),""))')
-        ws[f"{J}{r}"] = (f'=IF({I}{r}="","",IFERROR(INDEX({cal("E")},'
-                          f'MATCH({b}&"|Souscription|"&TEXT({I}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
-        ws[f"{K}{r}"] = f'=IF({H}{r}=0,"",_xlfn.MAXIFS({cal("D")},{cal("A")},{b},{cal("C")},"Souscription"))'
-
         ws[f"{L}{r}"] = f'=COUNTIFS({cal("A")},{b},{cal("C")},"Rachat")'
         ws[f"{M}{r}"] = (f'=IF({L}{r}=0,"",IFERROR(_xlfn.MINIFS({cal("D")},'
                           f'{cal("A")},{b},{cal("C")},"Rachat",'
                           f'{cal("D")},">="&TODAY()),""))')
         ws[f"{N}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX({cal("E")},'
                           f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
+        ws[f"{Nx}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX({cal("F")},'
+                           f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
+        ws[f"{Np}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX({cal("G")},'
+                           f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
         ws[f"{O}{r}"] = (f'=IF({M}{r}="","",IFERROR(INDEX({cal("H")},'
                           f'MATCH({b}&"|Rachat|"&TEXT({M}{r},"yyyy-mm-dd"),{cal("I")},0)),""))')
-        ws[f"{P}{r}"] = f'=IF({L}{r}=0,"",_xlfn.MAXIFS({cal("D")},{cal("A")},{b},{cal("C")},"Rachat"))'
 
         ws[f"{Q}{r}"] = f'=IF({c}="","",IF({c}>TODAY(),"FUTUR",DATEDIF({c},TODAY(),"m")))'
         ws[f"{R}{r}"] = f'=COUNTIF({pen("A")},{b})'
@@ -321,18 +321,17 @@ def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row, funds_by_isin):
         ws[f"{AD1}{r}"] = (f'=IF(OR({c}="",{Q}{r}="FUTUR"),"",_xlfn.IFS({Q}{r}<{U1}{r},{V1}{r},{Q}{r}<{W1}{r},{X1}{r},'
                             f'{Q}{r}<{Y1}{r},{Z1}{r},{Q}{r}<{AA1}{r},{AB1}{r},TRUE,{AC1}{r}))')
 
-        # Colonnes visibles
-        ws[f"D{r}"] = (f'=IF({H}{r}=0,"Calendrier non disponible pour ce fonds — contacter la société de gestion.",'
-                        f'IF({I}{r}="","Calendrier connu jusqu\'au "&TEXT({K}{r},"dd/mm/yyyy")&" — demander le calendrier à jour.",'
-                        f'"Cut-off : "&TEXT({I}{r},"dd/mm/yyyy")&"  |  VL : "&TEXT({J}{r},"dd/mm/yyyy")))')
-        ws[f"E{r}"] = (f'=IF({L}{r}=0,"Calendrier non disponible pour ce fonds — contacter la société de gestion.",'
-                        f'IF({M}{r}="","Calendrier connu jusqu\'au "&TEXT({P}{r},"dd/mm/yyyy")&" — demander le calendrier à jour.",'
-                        f'"Cut-off : "&TEXT({M}{r},"dd/mm/yyyy")&"  |  VL : "&TEXT({N}{r},"dd/mm/yyyy")))')
-        ws[f"F{r}"] = (f'=IF({L}{r}=0,"Calendrier non disponible pour ce fonds.",'
-                        f'IF({M}{r}="","Calendrier connu jusqu\'au "&TEXT({P}{r},"dd/mm/yyyy")&".",'
-                        f'IF({O}{r}="","Non précisé dans le calendrier pour cette échéance.",'
-                        f'"Réception : "&TEXT({O}{r},"dd/mm/yyyy")&"  (suite au rachat du "&TEXT({N}{r},"dd/mm/yyyy")&")")))')
-        ws[f"G{r}"] = (
+        # Colonnes visibles D..H : valeurs reprises telles quelles de la base (une par champ).
+        for col_letter, helper in (("D", M), ("E", N), ("F", Nx), ("G", Np), ("H", O)):
+            cell = ws[f"{col_letter}{r}"]
+            cell.value = f"={helper}{r}"
+            cell.number_format = "dd/mm/yyyy"
+            cell.font = PLAIN_FONT
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        # Pénalité de sortie : vide si le client n'est plus concerné (délai dépassé) ; un
+        # message dans tous les autres cas.
+        ws[f"I{r}"] = (
             f'=_xlfn.IFS('
             f'{S}{r}="aucune","Aucune pénalité de sortie."&IF({Tc}{r}<>""," ("&{Tc}{r}&")",""),'
             f'{S}{r}="manuel","⚠️ À VÉRIFIER MANUELLEMENT : "&{Tc}{r},'
@@ -340,12 +339,13 @@ def build_exit_sheet(wb, src_ws, cal_last_row, pen_last_row, funds_by_isin):
             f'{c}="","Saisir une date d\'investissement pour statuer sur la pénalité.",'
             f'{Q}{r}="FUTUR","Date d\'investissement postérieure à aujourd\'hui — vérifier la saisie.",'
             f'{AD1}{r}>0,"⚠️ CONCERNÉ : pénalité de "&{AD1}{r}&"% (détention "&{Q}{r}&" mois). "&{Tc}{r},'
-            f'TRUE,"Non concerné (détention "&{Q}{r}&" mois). "&{Tc}{r})'
+            f'TRUE,"")'
         )
-        for col in range(4, 8):
-            cell = ws.cell(row=r, column=col)
-            cell.font = PLAIN_FONT
-            cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        pen_cell = ws[f"I{r}"]
+        pen_cell.font = PLAIN_FONT
+        pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+        ws.row_dimensions[r].height = 45
 
     return ws, len(selected), len(fund_rows)
 
@@ -369,7 +369,7 @@ def main():
 
     ws_cal = write_bdd_calendrier(wb, calendar)
     ws_pen = write_bdd_penalites(wb, funds)
-    _, selected_count, fund_rows_count = build_exit_sheet(wb, src_ws, ws_cal.max_row, ws_pen.max_row, funds_by_isin)
+    _, selected_count, fund_rows_count = build_exit_sheet(wb, src_ws, calendar, ws_cal.max_row, ws_pen.max_row, funds_by_isin)
 
     wb.active = wb.sheetnames.index("Calendrier de sortie")
     wb.save(out_path)

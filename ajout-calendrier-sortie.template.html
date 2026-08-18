@@ -135,7 +135,9 @@
   <header class="app-header">
     <h1>Ajout du calendrier de sortie à une consolidation</h1>
     <p>Déposez le fichier Excel de consolidation d'un client : une nouvelle feuille « Calendrier
-      de sortie » est générée automatiquement, avec les mêmes fonds et la même mise en forme.</p>
+      de sortie » est générée automatiquement, listant uniquement les fonds non cotés détenus par
+      ce client pour lesquels un calendrier de rachat (sortie) est connu, avec les dates de rachat
+      (ordre avant, VL, exécuté, publié, cash reçu) et la pénalité de sortie éventuelle.</p>
   </header>
 
   <div class="banner">
@@ -241,8 +243,8 @@
 
       const s = result.stats;
       const summary = s.selectedCount
-        ? '<li>' + s.selectedCount + ' fonds non coté(s) détenu(s) par ce client avec un calendrier de sortie connu — listés dans la nouvelle feuille.</li>'
-        : '<li>Aucun fonds détenu par ce client n\'a de calendrier de sortie connu dans la base — la feuille le précise.</li>';
+        ? '<li>' + s.selectedCount + ' fonds non coté(s) détenu(s) par ce client avec un calendrier de rachat (sortie) connu — listés dans la nouvelle feuille avec les dates de rachat (ordre avant / VL / exécuté / publié / cash reçu) et la pénalité de sortie éventuelle.</li>'
+        : '<li>Aucun fonds détenu par ce client n\'a de calendrier de rachat connu dans la base — la feuille le précise.</li>';
       setStatus("ok",
         '<div class="line1">✓ Feuille « Calendrier de sortie » générée</div>' +
         '<ul>' + summary +

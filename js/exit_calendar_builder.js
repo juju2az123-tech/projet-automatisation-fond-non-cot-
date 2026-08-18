@@ -3,13 +3,18 @@
  * ligne, catégories en lignes surlignées, ISIN en colonne B, montants par contrat en colonnes
  * suivantes), une nouvelle feuille "Calendrier de sortie" — un tableau compact listant
  * UNIQUEMENT les fonds que le client détient réellement (montant total non nul) ET pour
- * lesquels un calendrier de sortie officiel est connu dans la base Althos. Pas de fonds coté,
- * pas de fonds non détenu, pas de ligne "—" : si un fonds n'a rien à afficher, il n'apparaît
- * simplement pas.
+ * lesquels un calendrier de RACHAT (sortie) officiel est connu dans la base Althos. Pas de
+ * fonds coté, pas de fonds non détenu, pas de fonds sans calendrier de sortie : si un fonds n'a
+ * rien à afficher, il n'apparaît simplement pas.
  *
- * Pour chaque fonds retenu, 5 colonnes pilotées par formules Excel :
- *   Date d'investissement | Prochain ordre — entrée | Prochain ordre — sortie |
- *   Prochaine réception du cash | Pénalité de sortie
+ * Pour chaque fonds retenu, les valeurs de la prochaine échéance de rachat sont reprises
+ * telles quelles depuis la base (une colonne par champ, pas de texte composé) :
+ *   Date d'investissement | Rachat — ordre avant | Rachat — VL | Rachat — exécuté |
+ *   Rachat — publié | Rachat — cash reçu | Pénalité de sortie
+ *
+ * La colonne Pénalité de sortie reste VIDE quand le client n'est plus concerné (délai de
+ * pénalité dépassé) ; elle affiche un message dans tous les autres cas (aucune pénalité prévue,
+ * pénalité en cours, information non renseignée, ou cas ambigu à vérifier manuellement).
  *
  * Port JavaScript (ExcelJS, exécuté dans le navigateur) de scripts/build_client_workbook.py —
  * même logique de calcul, mêmes formules. La structure du fichier source (numéros de ligne,
@@ -218,27 +223,33 @@
   // -------------------------------------------------------------------------
 
   const HELPER_NAMES = [
-    "has_entree", "next_cutoff_entree", "next_val_entree", "max_cutoff_entree",
-    "has_sortie", "next_cutoff_sortie", "next_val_sortie", "next_cash_sortie", "max_cutoff_sortie",
+    "has_sortie", "next_cutoff_sortie", "next_val_sortie", "next_exec_sortie",
+    "next_pub_sortie", "next_cash_sortie",
     "months_held", "pen_found", "kind", "raw",
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
     "rate_now",
   ];
-  const HELPER_FIRST_COL = 8; // H
+  const HELPER_FIRST_COL = 10; // J (visible columns now go up to I)
 
   function helperCol(name) {
     return colLetter(HELPER_FIRST_COL + HELPER_NAMES.indexOf(name));
   }
 
-  function buildExitSheet(workbook, srcWs, headerRow, calLastRow, penLastRow, fundsByIsin) {
+  /** Un fonds n'a de calendrier "de sortie" que s'il a des échéances de type Rachat. */
+  function hasRachatCalendar(calendar, isin) {
+    const byType = calendar[isin];
+    return !!(byType && (byType["Rachat"] || byType["Souscription et rachat"]));
+  }
+
+  function buildExitSheet(workbook, srcWs, headerRow, calendar, calLastRow, penLastRow, fundsByIsin) {
     const cal = (col) => `BDD_Calendrier!$${col}$2:$${col}$${calLastRow}`;
     const pen = (col) => `BDD_Penalites!$${col}$2:$${col}$${penLastRow}`;
 
     const ws = workbook.addWorksheet("Calendrier de sortie");
 
     // 1) Repérage des fonds à retenir : détenus (montant total non nul) ET dotés d'un
-    //    calendrier de sortie connu dans la base Althos. Tout le reste (fonds cotés, fonds
-    //    non cotés non détenus, fonds sans calendrier) n'apparaît pas dans cette feuille.
+    //    calendrier de RACHAT connu dans la base Althos. Tout le reste (fonds cotés, fonds
+    //    non cotés non détenus, fonds sans calendrier de sortie) n'apparaît pas dans la feuille.
     const totalCol = findTotalColumn(srcWs, headerRow);
     const { fundRows } = classifyRows(srcWs, headerRow);
 
@@ -247,7 +258,7 @@
       const isinRaw = srcWs.getCell(srcRow, 2).value;
       const isin = typeof isinRaw === "string" ? isinRaw.trim() : isinRaw;
       const fund = isin ? fundsByIsin.get(isin) : null;
-      if (!fund || !fund.hasCalendar) return;
+      if (!fund || !hasRachatCalendar(calendar, isin)) return;
       const amount = holdingAmount(srcWs, srcRow, totalCol);
       const isHeld = amount === null || Math.abs(amount) > 0.005;
       if (!isHeld) return;
@@ -262,8 +273,8 @@
     const headerStyle = cloneStyle(srcWs.getCell(headerRow, 1));
     const headers = [
       "Fonds", "ISIN", "Date d'investissement",
-      "Prochain ordre — entrée", "Prochain ordre — sortie",
-      "Prochaine réception du cash", "Pénalité de sortie",
+      "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
+      "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie",
     ];
     headers.forEach((label, i) => {
       const cell = ws.getCell(1, i + 1);
@@ -272,15 +283,15 @@
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     });
     ws.getRow(1).height = 30;
-    const widths = [34, 14, 16, 32, 32, 30, 46];
+    const widths = [34, 14, 16, 16, 14, 14, 14, 14, 46];
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     HELPER_NAMES.forEach((name) => { ws.getColumn(colNumOf(helperCol(name))).hidden = true; });
 
     if (!selected.length) {
       ws.getCell(2, 1).value =
-        "Aucun fonds avec calendrier de sortie connu n'est actuellement détenu par ce client " +
-        "(montant total nul, ou fonds hors périmètre \"fonds non cotés suivis\").";
+        "Aucun fonds avec calendrier de sortie (rachat) connu n'est actuellement détenu par ce " +
+        "client (montant total nul, ou fonds hors périmètre \"fonds non cotés suivis\").";
       ws.mergeCells(2, 1, 2, headers.length);
       ws.getCell(2, 1).alignment = { wrapText: true, vertical: "middle" };
       ws.getRow(2).height = 30;
@@ -299,13 +310,12 @@
       dateCell.numFmt = "dd/mm/yyyy";
       dateCell.font = plainFont;
       dateCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: YELLOW_ARGB } };
-      ws.getRow(r).height = 60;
 
       const b = `"${item.isin}"`;
       const c = `$C${r}`;
 
-      const H = helperCol("has_entree"), I = helperCol("next_cutoff_entree"), J = helperCol("next_val_entree"), K = helperCol("max_cutoff_entree");
-      const L = helperCol("has_sortie"), M = helperCol("next_cutoff_sortie"), N = helperCol("next_val_sortie"), O = helperCol("next_cash_sortie"), P = helperCol("max_cutoff_sortie");
+      const L = helperCol("has_sortie"), M = helperCol("next_cutoff_sortie"), N = helperCol("next_val_sortie"),
+        Nx = helperCol("next_exec_sortie"), Np = helperCol("next_pub_sortie"), O = helperCol("next_cash_sortie");
       const Q = helperCol("months_held");
       const R = helperCol("pen_found");
       const S = helperCol("kind");
@@ -314,16 +324,12 @@
         Y1 = helperCol("max3"), Z1 = helperCol("rate3"), AA1 = helperCol("max4"), AB1 = helperCol("rate4"), AC1 = helperCol("rate5");
       const AD1 = helperCol("rate_now");
 
-      setF(ws, `${H}${r}`, `COUNTIFS(${cal("A")},${b},${cal("C")},"Souscription")`);
-      setF(ws, `${I}${r}`, `IF(${H}${r}=0,"",IFERROR(_xlfn.MINIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Souscription",${cal("D")},">="&TODAY()),""))`);
-      setF(ws, `${J}${r}`, `IF(${I}${r}="","",IFERROR(INDEX(${cal("E")},MATCH(${b}&"|Souscription|"&TEXT(${I}${r},"yyyy-mm-dd"),${cal("I")},0)),""))`);
-      setF(ws, `${K}${r}`, `IF(${H}${r}=0,"",_xlfn.MAXIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Souscription"))`);
-
       setF(ws, `${L}${r}`, `COUNTIFS(${cal("A")},${b},${cal("C")},"Rachat")`);
       setF(ws, `${M}${r}`, `IF(${L}${r}=0,"",IFERROR(_xlfn.MINIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},">="&TODAY()),""))`);
       setF(ws, `${N}${r}`, `IF(${M}${r}="","",IFERROR(INDEX(${cal("E")},MATCH(${b}&"|Rachat|"&TEXT(${M}${r},"yyyy-mm-dd"),${cal("I")},0)),""))`);
+      setF(ws, `${Nx}${r}`, `IF(${M}${r}="","",IFERROR(INDEX(${cal("F")},MATCH(${b}&"|Rachat|"&TEXT(${M}${r},"yyyy-mm-dd"),${cal("I")},0)),""))`);
+      setF(ws, `${Np}${r}`, `IF(${M}${r}="","",IFERROR(INDEX(${cal("G")},MATCH(${b}&"|Rachat|"&TEXT(${M}${r},"yyyy-mm-dd"),${cal("I")},0)),""))`);
       setF(ws, `${O}${r}`, `IF(${M}${r}="","",IFERROR(INDEX(${cal("H")},MATCH(${b}&"|Rachat|"&TEXT(${M}${r},"yyyy-mm-dd"),${cal("I")},0)),""))`);
-      setF(ws, `${P}${r}`, `IF(${L}${r}=0,"",_xlfn.MAXIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Rachat"))`);
 
       setF(ws, `${Q}${r}`, `IF(${c}="","",IF(${c}>TODAY(),"FUTUR",DATEDIF(${c},TODAY(),"m")))`);
       setF(ws, `${R}${r}`, `COUNTIF(${pen("A")},${b})`);
@@ -340,10 +346,19 @@
       setF(ws, `${AC1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("L")},MATCH(${b},${pen("A")},0)))`);
       setF(ws, `${AD1}${r}`, `IF(OR(${c}="",${Q}${r}="FUTUR"),"",_xlfn.IFS(${Q}${r}<${U1}${r},${V1}${r},${Q}${r}<${W1}${r},${X1}${r},${Q}${r}<${Y1}${r},${Z1}${r},${Q}${r}<${AA1}${r},${AB1}${r},TRUE,${AC1}${r}))`);
 
-      setF(ws, `D${r}`, `IF(${H}${r}=0,"Calendrier non disponible pour ce fonds — contacter la société de gestion.",IF(${I}${r}="","Calendrier connu jusqu'au "&TEXT(${K}${r},"dd/mm/yyyy")&" — demander le calendrier à jour.","Cut-off : "&TEXT(${I}${r},"dd/mm/yyyy")&"  |  VL : "&TEXT(${J}${r},"dd/mm/yyyy")))`);
-      setF(ws, `E${r}`, `IF(${L}${r}=0,"Calendrier non disponible pour ce fonds — contacter la société de gestion.",IF(${M}${r}="","Calendrier connu jusqu'au "&TEXT(${P}${r},"dd/mm/yyyy")&" — demander le calendrier à jour.","Cut-off : "&TEXT(${M}${r},"dd/mm/yyyy")&"  |  VL : "&TEXT(${N}${r},"dd/mm/yyyy")))`);
-      setF(ws, `F${r}`, `IF(${L}${r}=0,"Calendrier non disponible pour ce fonds.",IF(${M}${r}="","Calendrier connu jusqu'au "&TEXT(${P}${r},"dd/mm/yyyy")&".",IF(${O}${r}="","Non précisé dans le calendrier pour cette échéance.","Réception : "&TEXT(${O}${r},"dd/mm/yyyy")&"  (suite au rachat du "&TEXT(${N}${r},"dd/mm/yyyy")&")")))`);
-      setF(ws, `G${r}`,
+      // Colonnes visibles D..H : valeurs reprises telles quelles de la base (une par champ).
+      [["D", M], ["E", N], ["F", Nx], ["G", Np], ["H", O]].forEach(([col, helper]) => {
+        setF(ws, `${col}${r}`, `${helper}${r}`);
+        const cell = ws.getCell(`${col}${r}`);
+        cell.numFmt = "dd/mm/yyyy";
+        cell.font = plainFont;
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+      });
+
+      // Pénalité de sortie : vide si le client n'est plus concerné (délai dépassé) ; un
+      // message dans tous les autres cas (aucune pénalité prévue, en cours, non renseignée,
+      // ou ambiguë à vérifier manuellement).
+      setF(ws, `I${r}`,
         `_xlfn.IFS(` +
         `${S}${r}="aucune","Aucune pénalité de sortie."&IF(${Tc}${r}<>""," ("&${Tc}${r}&")",""),` +
         `${S}${r}="manuel","⚠️ À VÉRIFIER MANUELLEMENT : "&${Tc}${r},` +
@@ -351,14 +366,13 @@
         `${c}="","Saisir une date d'investissement pour statuer sur la pénalité.",` +
         `${Q}${r}="FUTUR","Date d'investissement postérieure à aujourd'hui — vérifier la saisie.",` +
         `${AD1}${r}>0,"⚠️ CONCERNÉ : pénalité de "&${AD1}${r}&"% (détention "&${Q}${r}&" mois). "&${Tc}${r},` +
-        `TRUE,"Non concerné (détention "&${Q}${r}&" mois). "&${Tc}${r})`
+        `TRUE,"")`
       );
+      const penCell = ws.getCell(`I${r}`);
+      penCell.font = plainFont;
+      penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
 
-      for (let c2 = 4; c2 <= 7; c2++) {
-        const cell = ws.getCell(r, c2);
-        cell.font = plainFont;
-        cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-      }
+      ws.getRow(r).height = 45;
     });
 
     return { ws, selectedCount: selected.length, fundRowsScanned: fundRows.length };
@@ -404,7 +418,7 @@
     const wsPen = writeBddPenalites(workbook, FUNDS);
 
     const { ws: exitWs, selectedCount, fundRowsScanned } =
-      buildExitSheet(workbook, srcWs, headerRow, wsCal.rowCount, wsPen.rowCount, fundsByIsin);
+      buildExitSheet(workbook, srcWs, headerRow, CALENDAR, wsCal.rowCount, wsPen.rowCount, fundsByIsin);
 
     // Ordre des feuilles : Consolidation, Calendrier de sortie, puis le reste tel quel.
     let order = 1;
