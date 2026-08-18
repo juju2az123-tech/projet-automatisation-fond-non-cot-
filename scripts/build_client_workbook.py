@@ -242,6 +242,16 @@ def write_bdd_penalites(wb, funds):
 # Nouvelle feuille visible "Calendrier de sortie"
 # ---------------------------------------------------------------------------
 
+_FR_WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+_FR_MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août",
+              "Septembre", "Octobre", "Novembre", "Décembre"]
+
+
+def format_french_date(d):
+    """« Mardi 18 Août 2026 », comme le sous-titre daté de la feuille Consolidation."""
+    return f"{_FR_WEEKDAYS[d.weekday()]} {d.day} {_FR_MONTHS[d.month - 1]} {d.year}"
+
+
 HELPER_NAMES = [
     "has_sortie", "next_cutoff_sortie", "next_val_sortie", "next_exec_sortie",
     "next_pub_sortie", "next_cash_sortie",
@@ -299,18 +309,20 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
                 continue
             selected.append({"isin": isin, "nom": nom, "category": category, "owner": owner})
 
-    # Présentation "à la Althos" : bandeau de titre (repris tel quel du titre de Consolidation,
-    # ligne 1 — même couleur, même police), en-tête de tableau et bandeaux de catégorie en beige
+    # Présentation "à la Althos" : bandeau de titre + sous-titre daté (repris tel quel des lignes
+    # 1 et 3 de Consolidation — même couleur, même police, même mise en italique), en-tête de
+    # tableau dans le même bleu que Consolidation et le titre, bandeaux de catégorie en beige
     # (repris de la couleur des catégories dans Consolidation), fonds sur fond blanc, quadrillage
-    # fin dans le même beige. Police commune à toute la feuille (celle de l'en-tête Consolidation,
-    # pas un choix arbitraire).
+    # fin en beige. Police commune à toute la feuille (celle de l'en-tête Consolidation, pas un
+    # choix arbitraire).
     header_style = copy(src_ws.cell(row=header_row, column=1)._style)  # navy header (theme1)
     header_font = src_ws.cell(row=header_row, column=1).font
     data_font = Font(name=header_font.name, size=header_font.size, bold=False)
 
     title_style = copy(src_ws.cell(row=1, column=1)._style)
-    # Style de bandeau de catégorie / en-tête : repris tel quel de la première ligne de catégorie
-    # trouvée dans la Consolidation (même couleur beige, même police en gras).
+    subtitle_style = copy(src_ws.cell(row=3, column=1)._style)
+    # Style de bandeau de catégorie : repris tel quel de la première ligne de catégorie trouvée
+    # dans la Consolidation (même couleur beige, même police en gras).
     category_style = copy(src_ws.cell(row=cat_rows[0], column=1)._style) if cat_rows else None
     beige_side = Side(style="thin", color="FFDDCCB8")
     grid_border = Border(top=beige_side, left=beige_side, bottom=beige_side, right=beige_side)
@@ -319,22 +331,29 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     headers = ["Titulaire", "Fonds", "ISIN", "Date d'investissement",
                "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
                "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie"]
+    HEADER_ROW_OUT = 5  # 1: titre, 2: (vide), 3: sous-titre daté, 4: (vide), 5: en-tête
+    FIRST_DATA_ROW = HEADER_ROW_OUT + 1
 
     title_cell = ws.cell(row=1, column=1, value="Calendrier des délais de sortie")
     title_cell._style = copy(title_style)
-    title_cell.alignment = Alignment(horizontal="left", vertical="center")
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
-    ws.row_dimensions[1].height = src_ws.row_dimensions[1].height or 24
+    ws.row_dimensions[1].height = src_ws.row_dimensions[1].height or 22.5
+
+    subtitle_cell = ws.cell(row=3, column=1, value=format_french_date(datetime.date.today()))
+    subtitle_cell._style = copy(subtitle_style)
+    subtitle_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(headers))
+    ws.row_dimensions[3].height = src_ws.row_dimensions[3].height or 14
 
     for i, label in enumerate(headers):
-        cell = ws.cell(row=2, column=i + 1, value=label)
-        cell._style = copy(category_style) if category_style is not None else copy(header_style)
-        cell.font = Font(name=header_font.name, size=header_font.size, bold=True)
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell = ws.cell(row=HEADER_ROW_OUT, column=i + 1, value=label)
+        cell._style = copy(header_style)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=False)
         cell.border = grid_border
-    ws.row_dimensions[2].height = 30
+    ws.row_dimensions[HEADER_ROW_OUT].height = 22
 
-    widths = [16, 34, 14, 16, 16, 14, 14, 14, 14, 46]
+    widths = [14, 32, 14, 22, 22, 15, 19, 18, 20, 46]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
 
@@ -344,13 +363,13 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     if not selected:
         msg = ("Aucun fonds avec calendrier de sortie (rachat) connu n'est actuellement détenu par "
                'ce client (montant total nul, ou fonds hors périmètre "fonds non cotés suivis").')
-        ws.cell(row=3, column=1, value=msg)
-        ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(headers))
-        ws.cell(row=3, column=1).alignment = Alignment(wrap_text=True, vertical="center")
-        ws.row_dimensions[3].height = 30
+        ws.cell(row=FIRST_DATA_ROW, column=1, value=msg)
+        ws.merge_cells(start_row=FIRST_DATA_ROW, start_column=1, end_row=FIRST_DATA_ROW, end_column=len(headers))
+        ws.cell(row=FIRST_DATA_ROW, column=1).alignment = Alignment(wrap_text=True, vertical="center")
+        ws.row_dimensions[FIRST_DATA_ROW].height = 30
         return ws, 0, len(fund_rows)
 
-    r = 3
+    r = FIRST_DATA_ROW
     current_category = object()  # sentinelle : force le 1er bandeau même si catégorie ""
     for item in selected:
         if category_style is not None and item["category"] != current_category:

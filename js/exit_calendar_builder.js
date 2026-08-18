@@ -62,6 +62,15 @@
     return isSolid && isBold;
   }
 
+  const FR_WEEKDAYS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+  const FR_MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août",
+    "Septembre", "Octobre", "Novembre", "Décembre"];
+
+  /** "Mardi 18 Août 2026", comme le sous-titre daté de la feuille Consolidation. */
+  function formatFrenchDate(d) {
+    return `${FR_WEEKDAYS[d.getDay()]} ${d.getDate()} ${FR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
   function cloneStyle(cell) {
     // Deep clone via JSON round-trip: ExcelJS style objects are plain data (no functions),
     // safe to clone this way and avoids two cells sharing (and mutating) the same object.
@@ -316,19 +325,21 @@
       });
     });
 
-    // 2) Présentation "à la Althos" : bandeau de titre (repris tel quel du titre de
-    //    Consolidation, ligne 1 — même couleur, même police), en-tête de tableau et bandeaux de
+    // 2) Présentation "à la Althos" : bandeau de titre + sous-titre daté (repris tel quel des
+    //    lignes 1 et 3 de Consolidation — même couleur, même police, même mise en italique),
+    //    en-tête de tableau dans le même bleu que Consolidation et le titre, bandeaux de
     //    catégorie en beige (repris de la couleur des catégories dans Consolidation), fonds sur
-    //    fond blanc, quadrillage fin dans le même beige. Police commune à toute la feuille
-    //    (celle de l'en-tête Consolidation, pas un choix arbitraire).
+    //    fond blanc, quadrillage fin en beige. Police commune à toute la feuille (celle de
+    //    l'en-tête Consolidation, pas un choix arbitraire).
     const headerStyle = cloneStyle(srcWs.getCell(headerRow, 1));
     const baseFontName = (headerStyle.font && headerStyle.font.name) || "Calibri";
     const baseFontSize = (headerStyle.font && headerStyle.font.size) || 10;
     const dataFont = { name: baseFontName, size: baseFontSize, bold: false };
 
     const titleStyle = cloneStyle(srcWs.getCell(1, 1));
-    // Style de bandeau de catégorie / en-tête : repris tel quel de la première ligne de
-    // catégorie trouvée dans la Consolidation (même couleur beige, même police en gras).
+    const subtitleStyle = cloneStyle(srcWs.getCell(3, 1));
+    // Style de bandeau de catégorie : repris tel quel de la première ligne de catégorie trouvée
+    // dans la Consolidation (même couleur beige, même police en gras).
     const { categoryRows } = classifyRows(srcWs, headerRow);
     const categoryStyle = categoryRows.length ? cloneStyle(srcWs.getCell(categoryRows[0], 1)) : null;
     const BEIGE_ARGB = "FFDDCCB8";
@@ -344,41 +355,49 @@
       "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
       "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie",
     ];
+    const HEADER_ROW_OUT = 5; // 1: titre, 2: (vide), 3: sous-titre daté, 4: (vide), 5: en-tête
+    const FIRST_DATA_ROW = HEADER_ROW_OUT + 1;
 
     const titleCell = ws.getCell(1, 1);
     titleCell.value = "Calendrier des délais de sortie";
     titleCell.style = JSON.parse(JSON.stringify(titleStyle));
-    titleCell.alignment = { horizontal: "left", vertical: "middle" };
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
     ws.mergeCells(1, 1, 1, headers.length);
-    ws.getRow(1).height = srcWs.getRow(1).height || 24;
+    ws.getRow(1).height = srcWs.getRow(1).height || 22.5;
+
+    const subtitleCell = ws.getCell(3, 1);
+    subtitleCell.value = formatFrenchDate(new Date());
+    subtitleCell.style = JSON.parse(JSON.stringify(subtitleStyle));
+    subtitleCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.mergeCells(3, 1, 3, headers.length);
+    ws.getRow(3).height = srcWs.getRow(3).height || 14;
 
     headers.forEach((label, i) => {
-      const cell = ws.getCell(2, i + 1);
+      const cell = ws.getCell(HEADER_ROW_OUT, i + 1);
       cell.value = label;
-      cell.style = categoryStyle ? JSON.parse(JSON.stringify(categoryStyle)) : JSON.parse(JSON.stringify(headerStyle));
-      cell.font = { name: baseFontName, size: baseFontSize, bold: true };
-      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.style = JSON.parse(JSON.stringify(headerStyle));
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
       cell.border = gridBorder;
     });
-    ws.getRow(2).height = 30;
-    const widths = [16, 34, 14, 16, 16, 14, 14, 14, 14, 46];
+    ws.getRow(HEADER_ROW_OUT).height = 22;
+    const widths = [14, 32, 14, 22, 22, 15, 19, 18, 20, 46];
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     HELPER_NAMES.forEach((name) => { ws.getColumn(colNumOf(helperCol(name))).hidden = true; });
 
     if (!selected.length) {
-      ws.getCell(3, 1).value =
+      ws.getCell(FIRST_DATA_ROW, 1).value =
         "Aucun fonds avec calendrier de sortie (rachat) connu n'est actuellement détenu par ce " +
         "client (montant total nul, ou fonds hors périmètre \"fonds non cotés suivis\").";
-      ws.mergeCells(3, 1, 3, headers.length);
-      ws.getCell(3, 1).alignment = { wrapText: true, vertical: "middle" };
-      ws.getRow(3).height = 30;
+      ws.mergeCells(FIRST_DATA_ROW, 1, FIRST_DATA_ROW, headers.length);
+      ws.getCell(FIRST_DATA_ROW, 1).alignment = { wrapText: true, vertical: "middle" };
+      ws.getRow(FIRST_DATA_ROW).height = 30;
       return { ws, selectedCount: 0, fundRowsScanned: fundRows.length };
     }
 
     // 3) Bandeaux de catégorie (beige, comme dans Consolidation) + une ligne par fonds/titulaire
     //    retenu, avec les formules de calcul.
-    let r = 3;
+    let r = FIRST_DATA_ROW;
     let currentCategory = undefined; // undefined != "" : force le 1er bandeau même si catégorie ""
     selected.forEach((item) => {
       if (categoryStyle && item.category !== currentCategory) {
