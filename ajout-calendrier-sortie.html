@@ -10094,11 +10094,17 @@ window.FUNDS_DATA = {
       // VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS avec
       // une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une reconstruction de
       // clé texte + MATCH, plus fragile) — même mécanisme que ${M} ci-dessus, qui fonctionne de
-      // façon fiable.
-      setF(ws, `${N}${r}`, `IF(${M}${r}="","",IFERROR(_xlfn.MINIFS(${cal("E")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},${M}${r}),""))`);
-      setF(ws, `${Nx}${r}`, `IF(${M}${r}="","",IFERROR(_xlfn.MINIFS(${cal("F")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},${M}${r}),""))`);
-      setF(ws, `${Np}${r}`, `IF(${M}${r}="","",IFERROR(_xlfn.MINIFS(${cal("G")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},${M}${r}),""))`);
-      setF(ws, `${O}${r}`, `IF(${M}${r}="","",IFERROR(_xlfn.MINIFS(${cal("H")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},${M}${r}),""))`);
+      // façon fiable. MINIFS ignore les cellules vides : si ce champ précis n'est pas renseigné
+      // dans la base pour cette échéance, MINIFS ne trouve aucune valeur numérique et renvoie 0
+      // (jamais une vraie erreur) — sans la vérification "=0" ci-dessous, Excel afficherait ce 0
+      // comme une date, "00/01/1900", au lieu de laisser la cellule vide.
+      const minifsField = (col) =>
+        `IF(${M}${r}="","",IFERROR(IF(_xlfn.MINIFS(${cal(col)},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},${M}${r})=0,"",` +
+        `_xlfn.MINIFS(${cal(col)},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},${M}${r})),""))`;
+      setF(ws, `${N}${r}`, minifsField("E"));
+      setF(ws, `${Nx}${r}`, minifsField("F"));
+      setF(ws, `${Np}${r}`, minifsField("G"));
+      setF(ws, `${O}${r}`, minifsField("H"));
 
       setF(ws, `${Q}${r}`, `IF(${c}="","",IF(${c}>TODAY(),"FUTUR",DATEDIF(${c},TODAY(),"m")))`);
       setF(ws, `${R}${r}`, `COUNTIF(${pen("A")},${b})`);

@@ -427,15 +427,18 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         # VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS avec
         # une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une reconstruction de
         # clé texte + MATCH, plus fragile) — même mécanisme que {M} ci-dessus, qui fonctionne de
-        # façon fiable.
-        ws[f"{N}{r}"] = (f'=IF({M}{r}="","",IFERROR(_xlfn.MINIFS({cal("E")},'
-                          f'{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r}),""))')
-        ws[f"{Nx}{r}"] = (f'=IF({M}{r}="","",IFERROR(_xlfn.MINIFS({cal("F")},'
-                           f'{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r}),""))')
-        ws[f"{Np}{r}"] = (f'=IF({M}{r}="","",IFERROR(_xlfn.MINIFS({cal("G")},'
-                           f'{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r}),""))')
-        ws[f"{O}{r}"] = (f'=IF({M}{r}="","",IFERROR(_xlfn.MINIFS({cal("H")},'
-                          f'{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r}),""))')
+        # façon fiable. MINIFS ignore les cellules vides : si ce champ précis n'est pas renseigné
+        # dans la base pour cette échéance, MINIFS ne trouve aucune valeur numérique et renvoie 0
+        # (jamais une vraie erreur) — sans la vérification "=0" ci-dessous, Excel afficherait ce 0
+        # comme une date, "00/01/1900", au lieu de laisser la cellule vide.
+        def minifs_field(col):
+            expr = f'_xlfn.MINIFS({cal(col)},{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r})'
+            return f'=IF({M}{r}="","",IFERROR(IF({expr}=0,"",{expr}),""))'
+
+        ws[f"{N}{r}"] = minifs_field("E")
+        ws[f"{Nx}{r}"] = minifs_field("F")
+        ws[f"{Np}{r}"] = minifs_field("G")
+        ws[f"{O}{r}"] = minifs_field("H")
 
         ws[f"{Q}{r}"] = f'=IF({c}="","",IF({c}>TODAY(),"FUTUR",DATEDIF({c},TODAY(),"m")))'
         ws[f"{R}{r}"] = f'=COUNTIF({pen("A")},{b})'
