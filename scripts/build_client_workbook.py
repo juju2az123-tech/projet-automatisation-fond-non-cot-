@@ -66,6 +66,55 @@ def find_header_row(ws):
     return None
 
 
+def build_grid_border(ws, header_row):
+    """Couleur de quadrillage reprise telle quelle (référence de thème + teinte, PAS une valeur
+    fixe) de la bordure déjà utilisée par l'en-tête de Consolidation — sa couleur réelle dépend du
+    thème propre à chaque classeur (beige dans certains, bleu dans d'autres). Renvoie une bordure
+    complète (4 côtés) prête à appliquer à une cellule."""
+    header_border = ws.cell(row=header_row, column=1).border
+    ref_side = header_border.left or header_border.top or header_border.right or header_border.bottom
+    side = (copy(ref_side) if ref_side is not None and ref_side.style
+            else Side(style="thin", color="FFDDCCB8"))
+    side.style = "medium"
+    return Border(top=side, left=side, bottom=side, right=side)
+
+
+PENALTY_PREFIXES = {
+    "ferme": "Fonds fermé : aucun rachat possible.",
+    "manuel": "À VÉRIFIER MANUELLEMENT : ",
+    "concerne1": "Pénalité de sortie : ",
+    "concerne2": "Durée de détention actuelle : XXX mois.",
+}
+
+
+def estimate_penalty_lines(kind, raw_len, duree_len, chars_per_line):
+    """Nombre de lignes à prévoir pour le texte de pénalité d'un fonds donné, une fois la mise en
+    forme finale appliquée (2 phrases séparées par un retour à la ligne explicite pour "ferme" et
+    les pénalités actives datées) — calculé à partir de la longueur RÉELLE du texte de la base
+    (connue à la génération), pas devinée : un texte source inhabituellement long (ça arrive)
+    donne une ligne plus haute plutôt qu'un texte coupé."""
+    def lines_for(length):
+        return max(1, -(-length // chars_per_line))  # ceil
+
+    if kind == "ferme":
+        lines = lines_for(len(PENALTY_PREFIXES["ferme"]))
+        if duree_len:
+            lines += lines_for(duree_len)
+        return lines
+    if kind == "manuel":
+        return lines_for(len(PENALTY_PREFIXES["manuel"]) + raw_len)
+    if kind in ("seuil", "soft", "degressif"):
+        return lines_for(len(PENALTY_PREFIXES["concerne1"]) + raw_len) + lines_for(len(PENALTY_PREFIXES["concerne2"]))
+    return 1  # aucune / inconnue / date manquante / date future : message court
+
+
+def height_for_lines(lines, font_size):
+    """Hauteur de ligne (en points) pour `lines` lignes de texte à la taille de police
+    `font_size` — approximation du ratio hauteur de ligne / taille de police par défaut d'Excel
+    (~1.35), avec une petite marge pour ne jamais couper le texte de justesse."""
+    return round(lines * (font_size * 1.35 + 2))
+
+
 def find_total_column(ws, header_row):
     for c in range(3, ws.max_column + 1):
         v = ws.cell(row=header_row, column=c).value
@@ -454,7 +503,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         for owner, amount in holding_by_owner(src_ws, r, total_col, owner_labels):
             if amount is not None and abs(amount) <= 0.005:
                 continue
-            selected.append({"isin": isin, "nom": nom, "category": category, "owner": owner})
+            selected.append({"isin": isin, "nom": nom, "category": category, "owner": owner, "penalite": fund["penalite"]})
 
     # Regroupement par titulaire : un tableau complètement séparé par titulaire (Monsieur /
     # Madame / société...), plutôt qu'une colonne "Titulaire" au milieu d'un tableau commun —
@@ -472,22 +521,13 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             owner_order.append(key)
         by_owner[key].append(item)
     show_owner_headings = len(owner_order) > 1 or (len(owner_order) == 1 and owner_order[0] != "")
-    # Style du bandeau de titulaire : repris tel quel de la ligne de Consolidation où figurent
-    # les libellés "Monsieur" / "Madame" / société (juste au-dessus de l'en-tête "Support") —
-    # même principe que pour les autres styles de cette feuille : jamais une couleur codée en dur.
-    owner_header_style = None
-    owner_civilities = {}
-    if show_owner_headings:
-        owner_row = header_row - 1
-        for c in range(3, total_col or 3):
-            v = src_ws.cell(row=owner_row, column=c).value
-            if v is not None and str(v).strip() != "":
-                owner_header_style = copy(src_ws.cell(row=owner_row, column=c)._style)
-                break
-        # Harmonisation "M. Prénom NOM" / "Mme Prénom NOM" (uniquement sur cette feuille, jamais
-        # sur Consolidation elle-même) à partir du titre de Consolidation, qui énonce explicitement
-        # "Monsieur"/"Madame" pour chaque titulaire — jamais deviné.
-        owner_civilities = extract_owner_civilities(src_ws.cell(row=1, column=1).value)
+    # Harmonisation "M. Prénom NOM" / "Mme Prénom NOM" (uniquement sur cette feuille, jamais sur
+    # Consolidation elle-même) à partir du titre de Consolidation, qui énonce explicitement
+    # "Monsieur"/"Madame" pour chaque titulaire — jamais deviné. Le bandeau de titulaire reprend
+    # le même style que l'en-tête du tableau (pas le style, souvent plus petit, de la ligne où
+    # Consolidation affiche "Monsieur"/"Madame" au-dessus de ses colonnes contrat) : c'est un
+    # bandeau pleine largeur, pas une étiquette de sous-colonne.
+    owner_civilities = extract_owner_civilities(src_ws.cell(row=1, column=1).value) if show_owner_headings else {}
 
     # Présentation "à la Althos" : bandeau de titre + sous-titre daté (repris tel quel des lignes
     # 1 et 3 de Consolidation — même couleur, même police, même mise en italique), en-tête de
@@ -504,16 +544,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     # Style de bandeau de catégorie : repris tel quel de la première ligne de catégorie trouvée
     # dans la Consolidation (même couleur beige, même police en gras).
     category_style = copy(src_ws.cell(row=cat_rows[0], column=1)._style) if cat_rows else None
-    # Couleur de quadrillage : reprise telle quelle (référence de thème + teinte, PAS une valeur
-    # fixe) de la bordure déjà utilisée par l'en-tête de Consolidation — sa couleur réelle dépend
-    # du thème propre à chaque classeur (beige dans certains, bleu dans d'autres), donc on ne peut
-    # pas la coder en dur.
-    header_border = src_ws.cell(row=header_row, column=1).border
-    ref_side = header_border.left or header_border.top or header_border.right or header_border.bottom
-    grid_side = (copy(ref_side) if ref_side is not None and ref_side.style
-                 else Side(style="thin", color="FFDDCCB8"))
-    grid_side.style = "medium"
-    grid_border = Border(top=grid_side, left=grid_side, bottom=grid_side, right=grid_side)
+    grid_border = build_grid_border(src_ws, header_row)
     white_fill = PatternFill(start_color="FFFFFFFF", end_color="FFFFFFFF", fill_type="solid")
     ws.sheet_view.showGridLines = False  # comme Consolidation : pas de quadrillage Excel par défaut
     # Vue "aperçu des sauts de page", comme Consolidation : c'est ce qui affiche automatiquement
@@ -555,7 +586,9 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     if not show_owner_headings:
         write_header_row(HEADER_ROW_OUT)
 
-    widths = [40, 14, 22, 22, 15, 19, 18, 20, 46]
+    PENALTY_COL_WIDTH = 100  # large exprès : la plupart des textes de pénalité y tiennent sur une seule ligne
+    CHARS_PER_LINE = round(PENALTY_COL_WIDTH)  # approximation ~1 caractère par unité de largeur
+    widths = [40, 17, 22, 22, 15, 19, 18, 20, PENALTY_COL_WIDTH]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
 
@@ -575,11 +608,10 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     r = HEADER_ROW_OUT if show_owner_headings else FIRST_DATA_ROW
     for owner_key in owner_order:
         if show_owner_headings:
-            heading_style = owner_header_style or header_style
             heading = harmonize_owner_label(owner_key, owner_civilities)
             heading_cell = ws.cell(row=r, column=1, value=heading or "Autres titulaires")
             for c in range(1, len(headers) + 1):
-                ws.cell(row=r, column=c)._style = copy(heading_style)
+                ws.cell(row=r, column=c)._style = copy(header_style)
             heading_cell.alignment = Alignment(horizontal="center", vertical="center")
             ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=len(headers))
             ws.row_dimensions[r].height = 20
@@ -684,21 +716,25 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             # main, ou pénalité active à signaler au client.
             ws[f"I{r}"] = (
                 f'=_xlfn.IFS('
-                f'{S}{r}="ferme","Fonds fermé : aucun rachat possible."&IF({Dv}{r}<>""," "&{Dv}{r},""),'
+                f'{S}{r}="ferme","Fonds fermé : aucun rachat possible."&IF({Dv}{r}<>"",CHAR(10)&{Dv}{r},""),'
                 f'{S}{r}="manuel","À VÉRIFIER MANUELLEMENT : "&{Tc}{r},'
                 f'{S}{r}="aucune","",'
                 f'{S}{r}="inconnue","",'
                 f'{c}="","Saisir une date d\'investissement pour statuer sur la pénalité.",'
                 f'{Q}{r}="FUTUR","Date d\'investissement postérieure à aujourd\'hui — vérifier la saisie.",'
-                f'{AD1}{r}>0,"Pénalité de sortie : "&{Tc}{r}&" Durée de détention actuelle : "&{Q}{r}&" mois.",'
+                f'{AD1}{r}>0,"Pénalité de sortie : "&{Tc}{r}&CHAR(10)&"Durée de détention actuelle : "&{Q}{r}&" mois.",'
                 f'TRUE(),"")'
             )
             pen_cell = ws[f"I{r}"]
             pen_cell.font = data_font
             pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-            # Pas de hauteur fixe : laisse Excel ajuster automatiquement la hauteur de ligne au
-            # texte réellement affiché (un texte long ne serait pas coupé par une hauteur figée
-            # qui ne peut pas anticiper la longueur exacte du message calculé par la formule).
+            # Hauteur calculée à partir de la longueur RÉELLE du texte de pénalité de ce fonds
+            # (connue à la génération, via la base) : jamais une valeur fixe qui finirait par
+            # couper le message le plus long, ni un "auto" qu'Excel ne recalcule pas de façon
+            # fiable pour du texte arrivé par formule (contrairement à une saisie manuelle).
+            pen_info = item.get("penalite") or {"kind": "inconnue", "raw": None}
+            lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), CHARS_PER_LINE)
+            ws.row_dimensions[r].height = height_for_lines(lines, data_font.size)
             r += 1
 
     apply_print_setup(ws, r - 1, len(headers))
@@ -721,7 +757,7 @@ def apply_print_setup(ws, last_row, last_visible_col):
     ws.sheet_properties.pageSetUpPr.fitToPage = True
 
 
-def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, first_data_row, last_data_row):
+def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, first_data_row, last_data_row, funds_by_isin):
     """Ajoute 2 colonnes directement sur Consolidation ("Rachat — cash reçu" et "Pénalité de
     sortie"), une par fonds réellement détenu, en formule vers la feuille "Calendrier de sortie"
     déjà construite : même information dans les 2 pages, une seule source de vérité (pas de
@@ -756,11 +792,15 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     header_font = src_ws.cell(row=header_row, column=1).font
     data_font = Font(name=header_font.name, size=header_font.size, bold=False)
     two_row_header = has_two_row_header(src_ws, header_row, 1)
+    grid_border = build_grid_border(src_ws, header_row)
+    PENALTY_COL_WIDTH = 100  # large exprès : la plupart des textes de pénalité y tiennent sur une seule ligne
+    CHARS_PER_LINE = round(PENALTY_COL_WIDTH)
 
-    for col, label, width in ((cash_col, "Rachat — cash reçu", 16), (pen_col, "Pénalité de sortie", 46)):
+    for col, label, width in ((cash_col, "Rachat — cash reçu", 16), (pen_col, "Pénalité de sortie", PENALTY_COL_WIDTH)):
         cell = src_ws.cell(row=header_row, column=col, value=label)
         cell._style = copy(header_style)
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = grid_border
         col_letter = get_column_letter(col)
         src_ws.column_dimensions[col_letter].width = width
         # Toujours visible : la colonne peut hériter un état masqué du fichier d'origine si sa
@@ -768,7 +808,9 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         # "Mouvements en cours" déplacé) sans qu'on l'ait explicitement remise à zéro.
         src_ws.column_dimensions[col_letter].hidden = False
         if two_row_header:
-            src_ws.cell(row=header_row + 1, column=col)._style = copy(header_style)
+            bottom_cell = src_ws.cell(row=header_row + 1, column=col)
+            bottom_cell._style = copy(header_style)
+            bottom_cell.border = grid_border
             src_ws.merge_cells(start_row=header_row, start_column=col, end_row=header_row + 1, end_column=col)
 
     isin_range = f"'{exit_sheet_name}'!$B${first_data_row}:$B${last_data_row}"
@@ -786,26 +828,25 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         if not is_held:
             continue
 
-        # Bordure reprise de la colonne existante juste à gauche, sur cette même ligne, pour que
-        # le quadrillage de Consolidation se poursuive visuellement sur les 2 nouvelles colonnes
-        # au lieu de s'arrêter net.
-        ref_border = copy(src_ws.cell(row=r, column=max(1, cash_col - 1)).border)
-
         b = f'"{isin}"'
         cash_cell = src_ws.cell(row=r, column=cash_col, value=f"=IFERROR(INDEX({cash_range},MATCH({b},{isin_range},0)),\"\")")
         cash_cell.number_format = "dd/mm/yyyy"
         cash_cell.font = data_font
         cash_cell.alignment = Alignment(horizontal="center", vertical="center")
-        cash_cell.border = ref_border
+        cash_cell.border = grid_border
 
         pen_cell = src_ws.cell(row=r, column=pen_col, value=f"=IFERROR(INDEX({pen_range},MATCH({b},{isin_range},0)),\"\")")
         pen_cell.font = data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-        pen_cell.border = ref_border
-        # Cette ligne peut avoir une hauteur figée dans le fichier d'origine du conseiller (trop
-        # courte pour notre nouveau texte, potentiellement long) : on l'efface pour repasser en
-        # hauteur automatique, qu'Excel recalcule alors sur le texte réellement affiché.
-        src_ws.row_dimensions[r].height = None
+        pen_cell.border = grid_border
+
+        # Hauteur calculée à partir de la longueur RÉELLE du texte de pénalité de ce fonds
+        # (connue à la génération), qui remplace toute hauteur figée héritée du fichier
+        # d'origine du conseiller (potentiellement trop courte pour ce nouveau texte).
+        fund = funds_by_isin.get(isin)
+        pen_info = (fund or {}).get("penalite") or {"kind": "inconnue", "raw": None}
+        lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), CHARS_PER_LINE)
+        src_ws.row_dimensions[r].height = height_for_lines(lines, data_font.size)
 
     extend_print_area(src_ws, pen_col)
 
@@ -841,7 +882,7 @@ def main():
     # en formule vers "Calendrier de sortie" — même information, une seule source de vérité.
     header_row = find_header_row(src_ws)
     total_col = find_total_column(src_ws, header_row)
-    add_consolidation_columns(src_ws, header_row, total_col, exit_ws.title, first_data_row, last_data_row)
+    add_consolidation_columns(src_ws, header_row, total_col, exit_ws.title, first_data_row, last_data_row, funds_by_isin)
 
     wb.active = wb.sheetnames.index("Calendrier de sortie")
     wb.save(out_path)

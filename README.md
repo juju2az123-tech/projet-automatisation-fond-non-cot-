@@ -57,16 +57,26 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    La présentation reprend celle de la Consolidation elle-même : un bandeau de titre centré
    « Calendrier des délais de sortie » (même bleu, même police que le titre de Consolidation),
    un sous-titre daté en italique juste en dessous (date du jour au format jj/mm/aaaa, même style
-   que le sous-titre de Consolidation), un bandeau par titulaire repris de la ligne où
-   Consolidation indique déjà « Monsieur »/« Madame »/société, un en-tête de tableau dans le même
-   bleu que le titre, des bandeaux de catégorie dans la couleur des catégories de Consolidation,
-   les fonds sur fond blanc, et un quadrillage dont la couleur est reprise telle quelle de la
-   bordure déjà utilisée par Consolidation (pas une couleur codée en dur : elle dépend du thème
-   propre à chaque classeur, donc peut être beige, bleue, ou autre selon le fichier). Le
-   quadrillage Excel par défaut est désactivé, comme sur Consolidation, pour un fond bien blanc.
-   Police uniforme sur toute la feuille (celle utilisée par la Consolidation, pas un choix
-   arbitraire), et colonnes dimensionnées pour que chaque en-tête tienne sur une seule ligne. La
-   zone d'impression est définie sur tout le tableau généré, en orientation paysage et mise à
+   que le sous-titre de Consolidation), un bandeau par titulaire dans le même bleu que l'en-tête
+   du tableau (pas la police, parfois plus petite, de la ligne où Consolidation affiche déjà
+   « Monsieur »/« Madame » au-dessus de ses colonnes contrat — ce serait un bandeau pleine largeur
+   à une taille de sous-étiquette), un en-tête de tableau dans ce même bleu, des bandeaux de
+   catégorie dans la couleur des catégories de Consolidation, les fonds sur fond blanc, et un
+   quadrillage dont la couleur est reprise telle quelle de la bordure déjà utilisée par
+   Consolidation (pas une couleur codée en dur : elle dépend du thème propre à chaque classeur,
+   donc peut être beige, bleue, ou autre selon le fichier). Le quadrillage Excel par défaut est
+   désactivé, comme sur Consolidation, pour un fond bien blanc. Police uniforme sur toute la
+   feuille (celle utilisée par la Consolidation, pas un choix arbitraire).
+
+   **Colonne Pénalité de sortie large exprès**, avec un retour à la ligne explicite entre chaque
+   phrase du message (ex. « Pénalité de sortie : ... » puis, sur sa propre ligne, « Durée de
+   détention actuelle : X mois. ») : la hauteur de chaque ligne est calculée à la génération à
+   partir de la longueur réelle du texte de la base pour ce fonds précis (pas une valeur fixe, ni
+   un ajustement automatique par Excel — peu fiable pour du texte arrivé par formule plutôt que
+   saisi à la main), pour ne jamais couper le message le plus long tout en restant compact pour
+   les messages courts.
+
+   La zone d'impression est définie sur tout le tableau généré, en orientation paysage et mise à
    l'échelle sur une page en largeur (comme sur Consolidation) — imprimer ou exporter en PDF
    depuis cette feuille donne donc directement un rendu propre, sans réglage manuel. La feuille
    s'ouvre aussi en vue « aperçu des sauts de page » (comme Consolidation), ce qui affiche
@@ -92,7 +102,9 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    hauteur. Rempli uniquement pour les fonds réellement détenus (même filtre « montant non nul »
    que « Calendrier de sortie »). Si un même fonds est détenu via plusieurs titulaires (donc
    plusieurs lignes dans « Calendrier de sortie »), la ligne unique de Consolidation reprend la
-   première trouvée ; le détail par titulaire reste dans l'autre feuille.
+   première trouvée ; le détail par titulaire reste dans l'autre feuille. Colonne Pénalité de
+   sortie large exprès, quadrillage complet (même couleur reprise de Consolidation) et hauteur de
+   ligne calculée par fonds — exactement comme sur « Calendrier de sortie » (voir plus haut).
 3. **Si des fonds détenus ont une pénalité de sortie qui dépend d'une date d'investissement**
    (règle à seuil, soft lock-up ou dégressive), la page affiche directement une liste de ces
    fonds avec un champ de saisie par fonds — le conseiller renseigne les dates connues sans

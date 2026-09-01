@@ -74,6 +74,55 @@
     return JSON.parse(JSON.stringify(cell.style || {}));
   }
 
+  /** Couleur de quadrillage reprise telle quelle (référence de thème + teinte, PAS une valeur
+   *  fixe) de la bordure déjà utilisée par l'en-tête de Consolidation — sa couleur réelle dépend
+   *  du thème propre à chaque classeur (beige dans certains, bleu dans d'autres). Renvoie un
+   *  bordure complète (4 côtés) prête à appliquer à une cellule. */
+  function buildGridBorder(ws, headerRow) {
+    const headerBorder = ws.getCell(headerRow, 1).border || {};
+    const side = JSON.parse(JSON.stringify(
+      headerBorder.left || headerBorder.top || headerBorder.right || headerBorder.bottom ||
+      { style: "thin", color: { argb: "FFDDCCB8" } }
+    ));
+    side.style = "medium";
+    return { top: side, left: side, bottom: side, right: side };
+  }
+
+  const PENALTY_PREFIXES = {
+    ferme: "Fonds fermé : aucun rachat possible.",
+    manuel: "À VÉRIFIER MANUELLEMENT : ",
+    concerne1: "Pénalité de sortie : ",
+    concerne2: "Durée de détention actuelle : XXX mois.",
+  };
+
+  /** Nombre de lignes à prévoir pour le texte de pénalité d'un fonds donné, une fois la mise en
+   *  forme finale appliquée (2 phrases séparées par un retour à la ligne explicite pour "ferme"
+   *  et les pénalités actives datées) — calculé à partir de la longueur RÉELLE du texte de la
+   *  base (connue à la génération), pas devinée : un texte source inhabituellement long (ça
+   *  arrive) donne une ligne plus haute plutôt qu'un texte coupé. */
+  function estimatePenaltyLines(kind, rawLen, dureeLen, charsPerLine) {
+    const linesFor = (len) => Math.max(1, Math.ceil(len / charsPerLine));
+    if (kind === "ferme") {
+      let lines = linesFor(PENALTY_PREFIXES.ferme.length);
+      if (dureeLen) lines += linesFor(dureeLen);
+      return lines;
+    }
+    if (kind === "manuel") {
+      return linesFor(PENALTY_PREFIXES.manuel.length + rawLen);
+    }
+    if (kind === "seuil" || kind === "soft" || kind === "degressif") {
+      return linesFor(PENALTY_PREFIXES.concerne1.length + rawLen) + linesFor(PENALTY_PREFIXES.concerne2.length);
+    }
+    return 1; // aucune / inconnue / date manquante / date future : message court
+  }
+
+  /** Hauteur de ligne (en points) pour `lines` lignes de texte à la taille de police `fontSize`
+   *  — approximation du ratio hauteur de ligne / taille de police par défaut d'Excel (~1.35),
+   *  avec une petite marge pour ne jamais couper le texte de justesse. */
+  function heightForLines(lines, fontSize) {
+    return Math.round(lines * (fontSize * 1.35 + 2));
+  }
+
   // -------------------------------------------------------------------------
   // Pénalité -> 9 valeurs numériques pour une cascade IFS (identique à
   // build_tier_columns() dans scripts/build_client_workbook.py)
@@ -396,7 +445,7 @@
       holdingByOwner(srcWs, srcRow, totalCol, ownerLabels).forEach(([owner, amount]) => {
         const isHeld = amount === null || Math.abs(amount) > 0.005;
         if (!isHeld) return;
-        selected.push({ isin, nom, category, owner, amount, needsDate });
+        selected.push({ isin, nom, category, owner, amount, needsDate, penalite: fund.penalite });
       });
     });
 
@@ -414,25 +463,13 @@
       byOwner.get(key).push(item);
     });
     const showOwnerHeadings = ownerOrder.length > 1 || (ownerOrder.length === 1 && ownerOrder[0] !== "");
-    // Style du bandeau de titulaire : repris tel quel de la ligne de Consolidation où figurent
-    // les libellés "Monsieur" / "Madame" / société (juste au-dessus de l'en-tête "Support") —
-    // même principe que pour les autres styles de cette feuille : jamais une couleur codée en dur.
-    let ownerHeaderStyle = null;
-    let ownerCivilities = {};
-    if (showOwnerHeadings) {
-      const ownerRow = headerRow - 1;
-      for (let c = 3; c < totalCol; c++) {
-        const v = srcWs.getCell(ownerRow, c).value;
-        if (v !== null && v !== undefined && String(v).trim() !== "") {
-          ownerHeaderStyle = cloneStyle(srcWs.getCell(ownerRow, c));
-          break;
-        }
-      }
-      // Harmonisation "M. Prénom NOM" / "Mme Prénom NOM" (uniquement sur cette feuille, jamais
-      // sur Consolidation elle-même) à partir du titre de Consolidation, qui énonce explicitement
-      // "Monsieur"/"Madame" pour chaque titulaire — jamais deviné.
-      ownerCivilities = extractOwnerCivilities(srcWs.getCell(1, 1).value);
-    }
+    // Harmonisation "M. Prénom NOM" / "Mme Prénom NOM" (uniquement sur cette feuille, jamais sur
+    // Consolidation elle-même) à partir du titre de Consolidation, qui énonce explicitement
+    // "Monsieur"/"Madame" pour chaque titulaire — jamais deviné. Le bandeau de titulaire reprend
+    // le même style que l'en-tête du tableau (pas le style, souvent plus petit, de la ligne où
+    // Consolidation affiche "Monsieur"/"Madame" au-dessus de ses colonnes contrat) : c'est un
+    // bandeau pleine largeur, pas une étiquette de sous-colonne.
+    const ownerCivilities = showOwnerHeadings ? extractOwnerCivilities(srcWs.getCell(1, 1).value) : {};
 
     // 2) Présentation "à la Althos" : bandeau de titre + sous-titre daté (repris tel quel des
     //    lignes 1 et 3 de Consolidation — même couleur, même police, même mise en italique),
@@ -451,17 +488,7 @@
     // dans la Consolidation (même couleur beige, même police en gras).
     const { categoryRows } = classifyRows(srcWs, headerRow);
     const categoryStyle = categoryRows.length ? cloneStyle(srcWs.getCell(categoryRows[0], 1)) : null;
-    // Couleur de quadrillage : reprise telle quelle (référence de thème + teinte, PAS une valeur
-    // fixe) de la bordure déjà utilisée par l'en-tête de Consolidation — sa couleur réelle dépend
-    // du thème propre à chaque classeur (beige dans certains, bleu dans d'autres), donc on ne
-    // peut pas la coder en dur.
-    const headerBorder = srcWs.getCell(headerRow, 1).border || {};
-    const gridSide = JSON.parse(JSON.stringify(
-      headerBorder.left || headerBorder.top || headerBorder.right || headerBorder.bottom ||
-      { style: "thin", color: { argb: "FFDDCCB8" } }
-    ));
-    gridSide.style = "medium";
-    const gridBorder = { top: gridSide, left: gridSide, bottom: gridSide, right: gridSide };
+    const gridBorder = buildGridBorder(srcWs, headerRow);
 
     const headers = [
       "Fonds", "ISIN", "Date d'investissement",
@@ -502,7 +529,9 @@
       ws.getRow(atRow).height = 22;
     }
     if (!showOwnerHeadings) writeHeaderRow(HEADER_ROW_OUT);
-    const widths = [40, 14, 22, 22, 15, 19, 18, 20, 46];
+    const PENALTY_COL_WIDTH = 100; // large exprès : la plupart des textes de pénalité y tiennent sur une seule ligne
+    const CHARS_PER_LINE = Math.round(PENALTY_COL_WIDTH); // approximation ~1 caractère par unité de largeur
+    const widths = [40, 17, 22, 22, 15, 19, 18, 20, PENALTY_COL_WIDTH];
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     HELPER_NAMES.forEach((name) => { ws.getColumn(colNumOf(helperCol(name))).hidden = true; });
@@ -526,11 +555,10 @@
     const rowsNeedingDate = [];
     ownerOrder.forEach((ownerKey) => {
       if (showOwnerHeadings) {
-        const headingStyle = ownerHeaderStyle || headerStyle;
         const heading = harmonizeOwnerLabel(ownerKey, ownerCivilities);
         ws.getCell(r, 1).value = heading || "Autres titulaires";
         for (let c = 1; c <= headers.length; c++) {
-          ws.getCell(r, c).style = JSON.parse(JSON.stringify(headingStyle));
+          ws.getCell(r, c).style = JSON.parse(JSON.stringify(headerStyle));
         }
         ws.mergeCells(r, 1, r, headers.length);
         ws.getCell(r, 1).alignment = { horizontal: "center", vertical: "middle" };
@@ -636,21 +664,25 @@
         // active à signaler au client.
         setF(ws, `I${r}`,
           `_xlfn.IFS(` +
-          `${S}${r}="ferme","Fonds fermé : aucun rachat possible."&IF(${Dv}${r}<>""," "&${Dv}${r},""),` +
+          `${S}${r}="ferme","Fonds fermé : aucun rachat possible."&IF(${Dv}${r}<>"",CHAR(10)&${Dv}${r},""),` +
           `${S}${r}="manuel","À VÉRIFIER MANUELLEMENT : "&${Tc}${r},` +
           `${S}${r}="aucune","",` +
           `${S}${r}="inconnue","",` +
           `${c}="","Saisir une date d'investissement pour statuer sur la pénalité.",` +
           `${Q}${r}="FUTUR","Date d'investissement postérieure à aujourd'hui — vérifier la saisie.",` +
-          `${AD1}${r}>0,"Pénalité de sortie : "&${Tc}${r}&" Durée de détention actuelle : "&${Q}${r}&" mois.",` +
+          `${AD1}${r}>0,"Pénalité de sortie : "&${Tc}${r}&CHAR(10)&"Durée de détention actuelle : "&${Q}${r}&" mois.",` +
           `TRUE(),"")`
         );
         const penCell = ws.getCell(`I${r}`);
         penCell.font = dataFont;
         penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-        // Pas de hauteur fixe : laisse Excel ajuster automatiquement la hauteur de ligne au
-        // texte réellement affiché (un texte long ne serait pas coupé par une hauteur figée qui
-        // ne peut pas anticiper la longueur exacte du message calculé par la formule).
+        // Hauteur calculée à partir de la longueur RÉELLE du texte de pénalité de ce fonds
+        // (connue à la génération, via la base) : jamais une valeur fixe qui finirait par couper
+        // le message le plus long, ni un "auto" qu'Excel ne recalcule pas de façon fiable pour
+        // du texte arrivé par formule (contrairement à une saisie manuelle).
+        const penInfo = item.penalite || { kind: "inconnue", raw: null };
+        const lines = estimatePenaltyLines(penInfo.kind, (penInfo.raw || "").length, (penInfo.dureeVie || "").length, CHARS_PER_LINE);
+        ws.getRow(r).height = heightForLines(lines, baseFontSize);
         r += 1;
       });
     });
@@ -773,7 +805,7 @@
     }
   }
 
-  function addConsolidationColumns(srcWs, headerRow, totalCol, exitSheetName, firstDataRow, lastDataRow) {
+  function addConsolidationColumns(srcWs, headerRow, totalCol, exitSheetName, firstDataRow, lastDataRow, fundsByIsin) {
     if (!lastDataRow || lastDataRow < firstDataRow) return; // aucun fonds retenu, rien à référencer
 
     // "Mouvements en cours" (si présente) est toujours la toute dernière colonne du tableau
@@ -803,12 +835,16 @@
     const baseFontSize = (headerStyle.font && headerStyle.font.size) || 10;
     const dataFont = { name: baseFontName, size: baseFontSize, bold: false };
     const twoRowHeader = hasTwoRowHeader(srcWs, headerRow, 1);
+    const gridBorder = buildGridBorder(srcWs, headerRow);
+    const PENALTY_COL_WIDTH = 100; // large exprès : la plupart des textes de pénalité y tiennent sur une seule ligne
+    const CHARS_PER_LINE = Math.round(PENALTY_COL_WIDTH);
 
-    [[cashCol, "Rachat — cash reçu", 16], [penCol, "Pénalité de sortie", 46]].forEach(([col, label, width]) => {
+    [[cashCol, "Rachat — cash reçu", 16], [penCol, "Pénalité de sortie", PENALTY_COL_WIDTH]].forEach(([col, label, width]) => {
       const cell = srcWs.getCell(headerRow, col);
       cell.value = label;
       cell.style = JSON.parse(JSON.stringify(headerStyle));
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.border = gridBorder;
       const column = srcWs.getColumn(col);
       column.width = width;
       // Toujours visible : la colonne peut hériter un état masqué du fichier d'origine si sa
@@ -818,6 +854,7 @@
       if (twoRowHeader) {
         const bottomCell = srcWs.getCell(headerRow + 1, col);
         bottomCell.style = JSON.parse(JSON.stringify(headerStyle));
+        bottomCell.border = gridBorder;
         srcWs.mergeCells(headerRow, col, headerRow + 1, col);
       }
     });
@@ -835,28 +872,27 @@
       const isHeld = amount === null || Math.abs(amount) > 0.005;
       if (!isHeld) return;
 
-      // Bordure reprise de la colonne existante juste à gauche, sur cette même ligne, pour que
-      // le quadrillage de Consolidation se poursuive visuellement sur les 2 nouvelles colonnes
-      // au lieu de s'arrêter net.
-      const refBorder = JSON.parse(JSON.stringify(srcWs.getCell(r, Math.max(1, cashCol - 1)).border || {}));
-
       const b = `"${isin}"`;
       setF(srcWs, `${colLetter(cashCol)}${r}`, `IFERROR(INDEX(${cashRange},MATCH(${b},${isinRange},0)),"")`);
       const cashCell = srcWs.getCell(r, cashCol);
       cashCell.numFmt = "dd/mm/yyyy";
       cashCell.font = dataFont;
       cashCell.alignment = { horizontal: "center", vertical: "middle" };
-      cashCell.border = refBorder;
+      cashCell.border = gridBorder;
 
       setF(srcWs, `${colLetter(penCol)}${r}`, `IFERROR(INDEX(${penRange},MATCH(${b},${isinRange},0)),"")`);
       const penCell = srcWs.getCell(r, penCol);
       penCell.font = dataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-      penCell.border = refBorder;
-      // Cette ligne peut avoir une hauteur figée dans le fichier d'origine du conseiller (trop
-      // courte pour notre nouveau texte, potentiellement long) : on l'efface pour repasser en
-      // hauteur automatique, qu'Excel recalcule alors sur le texte réellement affiché.
-      srcWs.getRow(r).height = undefined;
+      penCell.border = gridBorder;
+
+      // Hauteur calculée à partir de la longueur RÉELLE du texte de pénalité de ce fonds (connue
+      // à la génération), qui remplace toute hauteur figée héritée du fichier d'origine du
+      // conseiller (potentiellement trop courte pour ce nouveau texte).
+      const fund = fundsByIsin.get(isin);
+      const penInfo = (fund && fund.penalite) || { kind: "inconnue", raw: null };
+      const lines = estimatePenaltyLines(penInfo.kind, (penInfo.raw || "").length, (penInfo.dureeVie || "").length, CHARS_PER_LINE);
+      srcWs.getRow(r).height = heightForLines(lines, baseFontSize);
     });
 
     extendPrintArea(srcWs, penCol);
@@ -928,7 +964,7 @@
     // Complète aussi Consolidation elle-même avec 2 colonnes (cash reçu / pénalité de sortie),
     // en formule vers "Calendrier de sortie" — même information, une seule source de vérité.
     const totalCol = findTotalColumn(srcWs, headerRow);
-    addConsolidationColumns(srcWs, headerRow, totalCol, exitWs.name, firstDataRow, lastDataRow);
+    addConsolidationColumns(srcWs, headerRow, totalCol, exitWs.name, firstDataRow, lastDataRow, fundsByIsin);
 
     // Ordre des feuilles : Consolidation, Calendrier de sortie, puis le reste tel quel.
     let order = 1;
