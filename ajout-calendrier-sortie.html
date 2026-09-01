@@ -11111,13 +11111,18 @@ window.FUNDS_DATA = {
   }
 
   /** Hauteur de ligne (en points) pour `lines` lignes de texte à la taille de police `fontSize`
-   *  — approximation du ratio hauteur de ligne / taille de police par défaut d'Excel (~1.35),
-   *  avec une petite marge pour ne jamais couper le texte de justesse. */
+   *  — approximation généreuse du ratio hauteur de ligne / taille de police (~1.5, contre ~1.2
+   *  pour une police système classique) : la police réelle utilisée dans ces classeurs
+   *  (Montserrat) est plus large et rend visuellement plus haute qu'une police par défaut, donc
+   *  la marge est volontairement large pour ne jamais couper le texte de justesse. */
   function heightForLines(lines, fontSize) {
-    return Math.round(lines * (fontSize * 1.35 + 2));
+    return Math.round(lines * (fontSize * 1.6 + 4));
   }
 
-  const DEFAULT_PENALTY_ROW_HEIGHT = 60;
+  // Volontairement plus haut qu'un minimum "juste" : sans moteur de rendu disponible pour
+  // vérifier pixel par pixel, on préfère une ligne visiblement plus haute que nécessaire à un
+  // texte coupé dans le classeur final.
+  const DEFAULT_PENALTY_ROW_HEIGHT = 75;
 
   // -------------------------------------------------------------------------
   // Pénalité -> 9 valeurs numériques pour une cascade IFS (identique à
@@ -11526,7 +11531,11 @@ window.FUNDS_DATA = {
     }
     if (!showOwnerHeadings) writeHeaderRow(HEADER_ROW_OUT);
     const PENALTY_COL_WIDTH = 63;
-    const CHARS_PER_LINE = Math.round(PENALTY_COL_WIDTH); // approximation ~1 caractère par unité de largeur
+    // Facteur 0.7 : la police réelle (Montserrat) est plus large qu'une police système classique
+    // et le retour à la ligne se fait sur des mots entiers (jamais exactement à la largeur max),
+    // donc le nombre de caractères qui tiennent réellement sur une ligne est nettement inférieur
+    // à la largeur de colonne brute — mieux vaut sur-estimer le nombre de lignes que couper le texte.
+    const CHARS_PER_LINE = Math.round(PENALTY_COL_WIDTH * 0.55);
     const widths = [37, 16, 22, 22, 15, 19, 18, 20, PENALTY_COL_WIDTH];
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
@@ -11848,7 +11857,7 @@ window.FUNDS_DATA = {
     const twoRowHeader = hasTwoRowHeader(srcWs, headerRow, 1);
     const gridBorder = buildGridBorder(srcWs, headerRow);
     const PENALTY_COL_WIDTH = 63; // même largeur que sur "Calendrier de sortie", pour un rendu cohérent
-    const CHARS_PER_LINE = Math.round(PENALTY_COL_WIDTH);
+    const CHARS_PER_LINE = Math.round(PENALTY_COL_WIDTH * 0.55); // cf. commentaire dans buildExitSheet
 
     [[cashCol, "Rachat — cash reçu", 16], [penCol, "Pénalité de sortie", PENALTY_COL_WIDTH]].forEach(([col, label, width]) => {
       const cell = srcWs.getCell(headerRow, col);

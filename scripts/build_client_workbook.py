@@ -110,12 +110,17 @@ def estimate_penalty_lines(kind, raw_len, duree_len, chars_per_line):
 
 def height_for_lines(lines, font_size):
     """Hauteur de ligne (en points) pour `lines` lignes de texte à la taille de police
-    `font_size` — approximation du ratio hauteur de ligne / taille de police par défaut d'Excel
-    (~1.35), avec une petite marge pour ne jamais couper le texte de justesse."""
-    return round(lines * (font_size * 1.35 + 2))
+    `font_size` — approximation généreuse du ratio hauteur de ligne / taille de police (~1.5,
+    contre ~1.2 pour une police système classique) : la police réelle utilisée dans ces
+    classeurs (Montserrat) est plus large et rend visuellement plus haute qu'une police par
+    défaut, donc la marge est volontairement large pour ne jamais couper le texte de justesse."""
+    return round(lines * (font_size * 1.6 + 4))
 
 
-DEFAULT_PENALTY_ROW_HEIGHT = 60
+# Volontairement plus haut qu'un minimum "juste" : sans moteur de rendu disponible pour vérifier
+# pixel par pixel, on préfère une ligne visiblement plus haute que nécessaire à un texte coupé
+# dans le classeur final.
+DEFAULT_PENALTY_ROW_HEIGHT = 75
 
 
 def find_total_column(ws, header_row):
@@ -602,7 +607,11 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         write_header_row(HEADER_ROW_OUT)
 
     PENALTY_COL_WIDTH = 63
-    CHARS_PER_LINE = round(PENALTY_COL_WIDTH)  # approximation ~1 caractère par unité de largeur
+    # Facteur 0.7 : la police réelle (Montserrat) est plus large qu'une police système classique
+    # et le retour à la ligne se fait sur des mots entiers (jamais exactement à la largeur max),
+    # donc le nombre de caractères qui tiennent réellement sur une ligne est nettement inférieur
+    # à la largeur de colonne brute — mieux vaut sur-estimer le nombre de lignes que couper le texte.
+    CHARS_PER_LINE = round(PENALTY_COL_WIDTH * 0.55)
     widths = [37, 16, 22, 22, 15, 19, 18, 20, PENALTY_COL_WIDTH]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
@@ -813,7 +822,7 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     two_row_header = has_two_row_header(src_ws, header_row, 1)
     grid_border = build_grid_border(src_ws, header_row)
     PENALTY_COL_WIDTH = 63  # même largeur que sur "Calendrier de sortie", pour un rendu cohérent
-    CHARS_PER_LINE = round(PENALTY_COL_WIDTH)
+    CHARS_PER_LINE = round(PENALTY_COL_WIDTH * 0.55)  # cf. commentaire dans build_exit_sheet
 
     for col, label, width in ((cash_col, "Rachat — cash reçu", 16), (pen_col, "Pénalité de sortie", PENALTY_COL_WIDTH)):
         cell = src_ws.cell(row=header_row, column=col, value=label)

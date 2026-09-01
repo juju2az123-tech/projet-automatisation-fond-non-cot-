@@ -70,11 +70,13 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
 
    **Colonne Pénalité de sortie** avec un retour à la ligne explicite entre chaque phrase du
    message (ex. « Pénalité de sortie : ... » puis, sur sa propre ligne, « Durée de détention
-   actuelle : X mois. »). Chaque ligne de fonds a une hauteur de 60pt par défaut (confortable pour
-   l'immense majorité des messages) — augmentée seulement si le texte réel de la base pour ce
-   fonds précis est inhabituellement long, à partir de sa longueur réelle connue à la génération
+   actuelle : X mois. »). Chaque ligne de fonds a une hauteur de 75pt par défaut — augmentée à
+   partir de la longueur réelle du texte de la base pour ce fonds précis, connue à la génération
    (jamais un ajustement automatique par Excel : peu fiable pour du texte arrivé par formule
-   plutôt que saisi à la main).
+   plutôt que saisi à la main). L'estimation du nombre de lignes nécessaires applique une marge de
+   sécurité volontairement large (police Montserrat, plus large qu'une police système classique,
+   et cet environnement de génération ne dispose d'aucun moteur de rendu pour vérifier le résultat
+   pixel par pixel) — mieux vaut une ligne visiblement plus haute que nécessaire qu'un texte coupé.
 
    La zone d'impression est définie sur tout le tableau généré, en orientation paysage et mise à
    l'échelle sur une page en largeur (comme sur Consolidation) — imprimer ou exporter en PDF
