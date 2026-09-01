@@ -11542,12 +11542,11 @@ window.FUNDS_DATA = {
     }
 
     // 3) Un bandeau par titulaire suivi de sa propre ligne d'en-tête (bandeaux de catégorie beige,
-    //    puis une ligne par fonds retenu, avec les formules de calcul) — le tout dans un seul
-    //    tableau continu, sans ligne vide entre 2 titulaires, pour que le quadrillage et le
-    //    contour d'impression englobent l'ensemble sans "trou".
+    //    puis une ligne par fonds retenu, avec les formules de calcul) — chaque titulaire séparé
+    //    du suivant par 1 ligne vide, pour que 2 tableaux distincts ne paraissent pas collés.
     let r = showOwnerHeadings ? HEADER_ROW_OUT : FIRST_DATA_ROW;
     const rowsNeedingDate = [];
-    ownerOrder.forEach((ownerKey) => {
+    ownerOrder.forEach((ownerKey, ownerIdx) => {
       if (showOwnerHeadings) {
         const heading = harmonizeOwnerLabel(ownerKey, ownerCivilities);
         ws.getCell(r, 1).value = heading || "Autres titulaires";
@@ -11679,6 +11678,10 @@ window.FUNDS_DATA = {
         ws.getRow(r).height = heightForLines(lines, baseFontSize);
         r += 1;
       });
+
+      // 1 ligne vide (non bordée) entre 2 titulaires, pour que 2 tableaux distincts ne
+      // paraissent pas collés l'un à l'autre.
+      if (showOwnerHeadings && ownerIdx < ownerOrder.length - 1) r += 1;
     });
 
     applyPrintSetup(ws, r - 1, headers.length);
@@ -11799,6 +11802,19 @@ window.FUNDS_DATA = {
     }
   }
 
+  /** Étend vers la droite la fusion de cellules qui commence à (row, 1) — typiquement le bandeau
+   *  de titre de Consolidation — pour couvrir au minimum jusqu'à `minColNeeded`, sans jamais la
+   *  réduire. Ne fait rien si cette cellule n'est pas fusionnée. */
+  function extendMergeRight(ws, row, minColNeeded) {
+    const cell = ws.getCell(row, 1);
+    if (!cell.isMerged) return;
+    const end = mergedBlockEndColumn(ws, row, 1);
+    if (minColNeeded > end) {
+      ws.unMergeCells(row, 1, row, end);
+      ws.mergeCells(row, 1, row, minColNeeded);
+    }
+  }
+
   function addConsolidationColumns(srcWs, headerRow, totalCol, exitSheetName, firstDataRow, lastDataRow, fundsByIsin) {
     if (!lastDataRow || lastDataRow < firstDataRow) return; // aucun fonds retenu, rien à référencer
 
@@ -11857,7 +11873,27 @@ window.FUNDS_DATA = {
     const cashRange = `'${exitSheetName}'!$H$${firstDataRow}:$H$${lastDataRow}`;
     const penRange = `'${exitSheetName}'!$I$${firstDataRow}:$I$${lastDataRow}`;
 
-    const { fundRows } = classifyRows(srcWs, headerRow);
+    // Style de bandeau de catégorie (fond beige) : repris de la colonne A de la 1re catégorie
+    // trouvée, pour prolonger ce même bandeau sur les 2 nouvelles colonnes plutôt que de laisser
+    // un "trou" blanc à chaque ligne de catégorie.
+    const { categoryRows, fundRows } = classifyRows(srcWs, headerRow);
+    const categoryFill = categoryRows.length ? JSON.parse(JSON.stringify(srcWs.getCell(categoryRows[0], 1).style.fill || {})) : null;
+
+    // Le quadrillage doit courir sans interruption sur TOUTE la hauteur du tableau (catégories
+    // ET fonds, détenus ou non) — sinon chaque fonds non détenu par ce client laisse un "trou"
+    // dans les 2 nouvelles colonnes, puisque Consolidation liste l'univers complet des fonds, pas
+    // seulement ceux de ce client.
+    categoryRows.forEach((r) => {
+      [cashCol, penCol].forEach((col) => {
+        const cell = srcWs.getCell(r, col);
+        if (categoryFill) cell.fill = JSON.parse(JSON.stringify(categoryFill));
+        cell.border = gridBorder;
+      });
+    });
+    fundRows.forEach((r) => {
+      [cashCol, penCol].forEach((col) => { srcWs.getCell(r, col).border = gridBorder; });
+    });
+
     fundRows.forEach((r) => {
       const isinRaw = srcWs.getCell(r, 2).value;
       const isin = typeof isinRaw === "string" ? isinRaw.trim() : isinRaw;
@@ -11872,13 +11908,11 @@ window.FUNDS_DATA = {
       cashCell.numFmt = "dd/mm/yyyy";
       cashCell.font = dataFont;
       cashCell.alignment = { horizontal: "center", vertical: "middle" };
-      cashCell.border = gridBorder;
 
       setF(srcWs, `${colLetter(penCol)}${r}`, `IFERROR(INDEX(${penRange},MATCH(${b},${isinRange},0)),"")`);
       const penCell = srcWs.getCell(r, penCol);
       penCell.font = dataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-      penCell.border = gridBorder;
 
       // Hauteur calculée à partir de la longueur RÉELLE du texte de pénalité de ce fonds (connue
       // à la génération), qui remplace toute hauteur figée héritée du fichier d'origine du
@@ -11889,6 +11923,7 @@ window.FUNDS_DATA = {
       srcWs.getRow(r).height = heightForLines(lines, baseFontSize);
     });
 
+    extendMergeRight(srcWs, 1, penCol);
     extendPrintArea(srcWs, penCol);
   }
 

@@ -226,6 +226,18 @@ def extend_print_area(ws, min_col_needed):
         ws.print_area = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(min_col_needed)}{max_row}"
 
 
+def extend_merge_right(ws, row, min_col_needed):
+    """Étend vers la droite la plage fusionnée qui commence à (row, 1) — typiquement le bandeau
+    de titre de Consolidation — pour couvrir au minimum jusqu'à `min_col_needed`, sans jamais la
+    réduire. Ne fait rien si cette cellule n'est pas fusionnée."""
+    for mc in list(ws.merged_cells.ranges):
+        if mc.min_row == row and mc.min_col == 1:
+            if min_col_needed > mc.max_col:
+                ws.unmerge_cells(str(mc))
+                ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=min_col_needed)
+            return
+
+
 def has_two_row_header(ws, header_row, col):
     """Vrai si l'en-tête de cette colonne occupe 2 lignes fusionnées (header_row:header_row+1),
     comme "Support"/"Dernière Valeur Liquidative" dans les fichiers Althos — pour aligner les 2
@@ -606,7 +618,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         return ws, 0, len(fund_rows), None, None
 
     r = HEADER_ROW_OUT if show_owner_headings else FIRST_DATA_ROW
-    for owner_key in owner_order:
+    for owner_idx, owner_key in enumerate(owner_order):
         if show_owner_headings:
             heading = harmonize_owner_label(owner_key, owner_civilities)
             heading_cell = ws.cell(row=r, column=1, value=heading or "Autres titulaires")
@@ -737,6 +749,11 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             ws.row_dimensions[r].height = height_for_lines(lines, data_font.size)
             r += 1
 
+        # 1 ligne vide (non bordée) entre 2 titulaires, pour que 2 tableaux distincts ne
+        # paraissent pas collés l'un à l'autre.
+        if show_owner_headings and owner_idx < len(owner_order) - 1:
+            r += 1
+
     apply_print_setup(ws, r - 1, len(headers))
     return ws, len(selected), len(fund_rows), FIRST_DATA_ROW, r - 1
 
@@ -817,7 +834,26 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     cash_range = f"'{exit_sheet_name}'!$H${first_data_row}:$H${last_data_row}"
     pen_range = f"'{exit_sheet_name}'!$I${first_data_row}:$I${last_data_row}"
 
-    _, fund_rows, _ = classify_rows(src_ws, header_row)
+    # Style de bandeau de catégorie (fond beige) : repris de la colonne A de la 1re catégorie
+    # trouvée, pour prolonger ce même bandeau sur les 2 nouvelles colonnes plutôt que de laisser
+    # un "trou" blanc à chaque ligne de catégorie.
+    category_rows, fund_rows, _ = classify_rows(src_ws, header_row)
+    category_fill = copy(src_ws.cell(row=category_rows[0], column=1).fill) if category_rows else None
+
+    # Le quadrillage doit courir sans interruption sur TOUTE la hauteur du tableau (catégories ET
+    # fonds, détenus ou non) — sinon chaque fonds non détenu par ce client laisse un "trou" dans
+    # les 2 nouvelles colonnes, puisque Consolidation liste l'univers complet des fonds, pas
+    # seulement ceux de ce client.
+    for r in category_rows:
+        for col in (cash_col, pen_col):
+            cell = src_ws.cell(row=r, column=col)
+            if category_fill is not None:
+                cell.fill = copy(category_fill)
+            cell.border = grid_border
+    for r in fund_rows:
+        for col in (cash_col, pen_col):
+            src_ws.cell(row=r, column=col).border = grid_border
+
     for r in fund_rows:
         isin_raw = src_ws.cell(row=r, column=2).value
         isin = isin_raw.strip() if isinstance(isin_raw, str) else isin_raw
@@ -833,12 +869,10 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         cash_cell.number_format = "dd/mm/yyyy"
         cash_cell.font = data_font
         cash_cell.alignment = Alignment(horizontal="center", vertical="center")
-        cash_cell.border = grid_border
 
         pen_cell = src_ws.cell(row=r, column=pen_col, value=f"=IFERROR(INDEX({pen_range},MATCH({b},{isin_range},0)),\"\")")
         pen_cell.font = data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-        pen_cell.border = grid_border
 
         # Hauteur calculée à partir de la longueur RÉELLE du texte de pénalité de ce fonds
         # (connue à la génération), qui remplace toute hauteur figée héritée du fichier
@@ -848,6 +882,7 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), CHARS_PER_LINE)
         src_ws.row_dimensions[r].height = height_for_lines(lines, data_font.size)
 
+    extend_merge_right(src_ws, 1, pen_col)
     extend_print_area(src_ws, pen_col)
 
 

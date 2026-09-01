@@ -49,10 +49,10 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    immédiatement de la ligne d'en-tête (`Fonds`, `ISIN`, ...) répétée, puis de ses catégories et
    ses fonds — plutôt qu'une colonne « Titulaire » mélangeant tout le monde. Un même fonds détenu
    à la fois par Monsieur ET Madame apparaît donc dans les 2 sections, chacune avec sa propre date
-   d'investissement et son propre statut de pénalité. Le tableau reste continu (pas de ligne vide
-   ni de coupure de quadrillage entre 2 titulaires) : le contour d'impression englobe l'ensemble
-   des titulaires comme un seul tableau. Une seule ligne d'en-tête, sans bandeau, si le fichier ne
-   subdivise pas les contrats (client à titulaire unique).
+   d'investissement et son propre statut de pénalité. Une ligne vide (non bordée) sépare 2
+   titulaires consécutifs, pour que leurs tableaux ne paraissent pas collés — le contour
+   d'impression englobe malgré tout l'ensemble des titulaires. Une seule ligne d'en-tête, sans
+   bandeau, si le fichier ne subdivise pas les contrats (client à titulaire unique).
 
    La présentation reprend celle de la Consolidation elle-même : un bandeau de titre centré
    « Calendrier des délais de sortie » (même bleu, même police que le titre de Consolidation),
@@ -104,7 +104,10 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    plusieurs lignes dans « Calendrier de sortie »), la ligne unique de Consolidation reprend la
    première trouvée ; le détail par titulaire reste dans l'autre feuille. Colonne Pénalité de
    sortie large exprès, quadrillage complet (même couleur reprise de Consolidation) et hauteur de
-   ligne calculée par fonds — exactement comme sur « Calendrier de sortie » (voir plus haut).
+   ligne calculée par fonds — exactement comme sur « Calendrier de sortie » (voir plus haut). Le
+   quadrillage court sans interruption sur toute la hauteur du tableau (catégories et fonds,
+   détenus ou non par ce client — Consolidation liste l'univers complet des fonds), et le bandeau
+   de titre tout en haut est étendu pour couvrir les 2 nouvelles colonnes.
 3. **Si des fonds détenus ont une pénalité de sortie qui dépend d'une date d'investissement**
    (règle à seuil, soft lock-up ou dégressive), la page affiche directement une liste de ces
    fonds avec un champ de saisie par fonds — le conseiller renseigne les dates connues sans
@@ -306,11 +309,11 @@ Il n'y a pas de colonne « Titulaire » : quand la Consolidation subdivise les c
 titulaire (Monsieur / Madame / société...), chaque titulaire obtient son **propre bandeau**
 (harmonisé en « M. Prénom NOM » / « Mme Prénom NOM » à partir du titre de Consolidation, qui
 énonce explicitement le genre — jamais deviné), suivi de sa propre ligne d'en-tête répétée, puis
-de ses catégories et ses fonds — pas une colonne au milieu d'un tableau commun. Le tableau reste
-continu d'un titulaire à l'autre (pas de ligne vide ni de coupure de quadrillage). Un même fonds
+de ses catégories et ses fonds — pas une colonne au milieu d'un tableau commun. Un même fonds
 détenu à la fois par Monsieur ET Madame apparaît donc dans les 2 sections, chacune avec sa propre
-date d'investissement et son propre statut de pénalité. Une seule ligne d'en-tête, sans bandeau,
-si le fichier ne subdivise pas les contrats (client à titulaire unique). Si
+date d'investissement et son propre statut de pénalité, séparées par une ligne vide (non bordée)
+pour qu'elles ne paraissent pas collées. Une seule ligne d'en-tête, sans bandeau, si le fichier ne
+subdivise pas les contrats (client à titulaire unique). Si
 aucun fonds détenu n'a de calendrier de rachat connu (ni fonds fermé), la feuille l'indique
 clairement au lieu d'un tableau vide. Comme dans `ajout-calendrier-sortie.html`, la feuille
 `Consolidation` reçoit aussi 2 colonnes (`Rachat — cash reçu`, `Pénalité de sortie`) collées juste
