@@ -33,6 +33,7 @@ Par défaut lit source/ConsolidationTemplateAlthosAI_V5.xlsx et écrit
 output/ConsolidationTemplateAlthosAI_V5_avec_calendrier.xlsx
 """
 import sys
+import re
 import datetime
 from copy import copy
 from pathlib import Path
@@ -263,6 +264,36 @@ def holding_by_owner(ws, row, total_col, owner_labels):
     return list(amounts.items())
 
 
+def extract_owner_civilities(title_text):
+    """Extrait {"nom complet (dans l'ordre du titre)": "M."|"Mme"} depuis le texte du titre de
+    Consolidation (ex. "Consolidation Monsieur Gérard LENO**** et Madame Marie MAUN***"), pour
+    harmoniser les bandeaux de titulaire de "Calendrier de sortie" uniquement (jamais
+    Consolidation elle-même, qui garde son propre texte tel quel). Ne devine jamais un genre : ne
+    renvoie que ce que le titre énonce explicitement."""
+    out = {}
+    if not title_text:
+        return out
+    for m in re.finditer(r"(Monsieur|Madame)\s+([^,;]+?)(?=\s+(?:et|Monsieur|Madame)\b|$)", str(title_text), re.IGNORECASE):
+        civ = "M." if m.group(1).lower() == "monsieur" else "Mme"
+        out[m.group(2).strip()] = civ
+    return out
+
+
+def harmonize_owner_label(label, civilities):
+    """Reformate un libellé de titulaire "NOM Prénom" (tel que lu dans Consolidation) en
+    "M. Prénom NOM" / "Mme Prénom NOM" quand le titre de Consolidation permet une correspondance
+    sans ambiguïté (mêmes mots, sans deviner un genre) ; renvoie le libellé d'origine inchangé
+    sinon (ex. une société)."""
+    if not label:
+        return label
+    label_tokens = "|".join(sorted(t.lower() for t in label.split()))
+    for name, civ in civilities.items():
+        name_tokens = "|".join(sorted(t.lower() for t in name.split()))
+        if label_tokens and label_tokens == name_tokens:
+            return f"{civ} {name}"
+    return label
+
+
 # ---------------------------------------------------------------------------
 # Pénalité -> 9 valeurs numériques exploitables par une formule IFS en cascade
 # (4 paliers "seuil" + 1 taux "au-delà"), quel que soit le nombre réel de
@@ -445,6 +476,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     # les libellés "Monsieur" / "Madame" / société (juste au-dessus de l'en-tête "Support") —
     # même principe que pour les autres styles de cette feuille : jamais une couleur codée en dur.
     owner_header_style = None
+    owner_civilities = {}
     if show_owner_headings:
         owner_row = header_row - 1
         for c in range(3, total_col or 3):
@@ -452,6 +484,10 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             if v is not None and str(v).strip() != "":
                 owner_header_style = copy(src_ws.cell(row=owner_row, column=c)._style)
                 break
+        # Harmonisation "M. Prénom NOM" / "Mme Prénom NOM" (uniquement sur cette feuille, jamais
+        # sur Consolidation elle-même) à partir du titre de Consolidation, qui énonce explicitement
+        # "Monsieur"/"Madame" pour chaque titulaire — jamais deviné.
+        owner_civilities = extract_owner_civilities(src_ws.cell(row=1, column=1).value)
 
     # Présentation "à la Althos" : bandeau de titre + sous-titre daté (repris tel quel des lignes
     # 1 et 3 de Consolidation — même couleur, même police, même mise en italique), en-tête de
@@ -487,7 +523,10 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     headers = ["Fonds", "ISIN", "Date d'investissement",
                "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
                "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie"]
-    HEADER_ROW_OUT = 5  # 1: titre, 2: (vide), 3: sous-titre daté, 4: (vide), 5: en-tête
+    # 1: titre, 2: (vide), 3: sous-titre daté, 4: (vide), 5: début du tableau — soit directement
+    # la ligne d'en-tête (un seul titulaire), soit le 1er bandeau de titulaire suivi de sa propre
+    # ligne d'en-tête (plusieurs titulaires).
+    HEADER_ROW_OUT = 5
     FIRST_DATA_ROW = HEADER_ROW_OUT + 1
 
     title_cell = ws.cell(row=1, column=1, value="Calendrier des délais de sortie")
@@ -502,14 +541,21 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(headers))
     ws.row_dimensions[3].height = src_ws.row_dimensions[3].height or 14
 
-    for i, label in enumerate(headers):
-        cell = ws.cell(row=HEADER_ROW_OUT, column=i + 1, value=label)
-        cell._style = copy(header_style)
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=False)
-        cell.border = grid_border
-    ws.row_dimensions[HEADER_ROW_OUT].height = 22
+    # Ligne d'en-tête ("Fonds | ISIN | ..."), réutilisable : écrite une seule fois si le fichier
+    # n'a qu'un seul titulaire, ou répétée juste sous chaque bandeau de titulaire sinon — pour que
+    # chaque section du tableau soit lisible seule, sans remonter chercher les intitulés.
+    def write_header_row(at_row):
+        for i, label in enumerate(headers):
+            cell = ws.cell(row=at_row, column=i + 1, value=label)
+            cell._style = copy(header_style)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=False)
+            cell.border = grid_border
+        ws.row_dimensions[at_row].height = 22
 
-    widths = [32, 14, 22, 22, 15, 19, 18, 20, 46]
+    if not show_owner_headings:
+        write_header_row(HEADER_ROW_OUT)
+
+    widths = [40, 14, 22, 22, 15, 19, 18, 20, 46]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
 
@@ -526,16 +572,19 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         apply_print_setup(ws, FIRST_DATA_ROW, len(headers))
         return ws, 0, len(fund_rows), None, None
 
-    r = FIRST_DATA_ROW
-    for owner_idx, owner_key in enumerate(owner_order):
+    r = HEADER_ROW_OUT if show_owner_headings else FIRST_DATA_ROW
+    for owner_key in owner_order:
         if show_owner_headings:
             heading_style = owner_header_style or header_style
-            heading_cell = ws.cell(row=r, column=1, value=owner_key or "Autres titulaires")
+            heading = harmonize_owner_label(owner_key, owner_civilities)
+            heading_cell = ws.cell(row=r, column=1, value=heading or "Autres titulaires")
             for c in range(1, len(headers) + 1):
                 ws.cell(row=r, column=c)._style = copy(heading_style)
             heading_cell.alignment = Alignment(horizontal="center", vertical="center")
             ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=len(headers))
             ws.row_dimensions[r].height = 20
+            r += 1
+            write_header_row(r)
             r += 1
 
         current_category = object()  # sentinelle : force le 1er bandeau même si catégorie ""
@@ -564,6 +613,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             date_cell = ws.cell(row=r, column=3)
             date_cell.number_format = "dd/mm/yyyy"
             date_cell.font = data_font
+            date_cell.alignment = Alignment(horizontal="center", vertical="center")
 
             b = f'"{isin}"'
             c = f"$C{r}"
@@ -634,25 +684,21 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             # main, ou pénalité active à signaler au client.
             ws[f"I{r}"] = (
                 f'=_xlfn.IFS('
-                f'{S}{r}="ferme","FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds."&IF({Dv}{r}<>""," "&{Dv}{r},""),'
+                f'{S}{r}="ferme","Fonds fermé : aucun rachat possible."&IF({Dv}{r}<>""," "&{Dv}{r},""),'
                 f'{S}{r}="manuel","À VÉRIFIER MANUELLEMENT : "&{Tc}{r},'
                 f'{S}{r}="aucune","",'
                 f'{S}{r}="inconnue","",'
                 f'{c}="","Saisir une date d\'investissement pour statuer sur la pénalité.",'
                 f'{Q}{r}="FUTUR","Date d\'investissement postérieure à aujourd\'hui — vérifier la saisie.",'
-                f'{AD1}{r}>0,"CONCERNÉ : pénalité de "&{AD1}{r}&"% (détention "&{Q}{r}&" mois). "&{Tc}{r},'
+                f'{AD1}{r}>0,"Pénalité de sortie : "&{Tc}{r}&" Durée de détention actuelle : "&{Q}{r}&" mois.",'
                 f'TRUE(),"")'
             )
             pen_cell = ws[f"I{r}"]
             pen_cell.font = data_font
             pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-
-            ws.row_dimensions[r].height = 60
-            r += 1
-
-        # Ligne vide (non bordée) entre 2 titulaires, pour que le contour du tableau ne referme
-        # qu'un seul titulaire à la fois, jamais les deux ensemble.
-        if show_owner_headings and owner_idx < len(owner_order) - 1:
+            # Pas de hauteur fixe : laisse Excel ajuster automatiquement la hauteur de ligne au
+            # texte réellement affiché (un texte long ne serait pas coupé par une hauteur figée
+            # qui ne peut pas anticiper la longueur exacte du message calculé par la formule).
             r += 1
 
     apply_print_setup(ws, r - 1, len(headers))
@@ -756,6 +802,10 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         pen_cell.font = data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
         pen_cell.border = ref_border
+        # Cette ligne peut avoir une hauteur figée dans le fichier d'origine du conseiller (trop
+        # courte pour notre nouveau texte, potentiellement long) : on l'efface pour repasser en
+        # hauteur automatique, qu'Excel recalcule alors sur le texte réellement affiché.
+        src_ws.row_dimensions[r].height = None
 
     extend_print_area(src_ws, pen_col)
 

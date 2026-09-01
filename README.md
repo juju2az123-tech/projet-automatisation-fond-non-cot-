@@ -41,16 +41,18 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    fonds détenu n'a de calendrier de rachat connu, la feuille l'indique clairement au lieu d'un
    tableau vide.
 
-   **Un tableau complètement séparé par titulaire** : quand la Consolidation subdivise les
-   contrats par titulaire (ligne juste au-dessus de l'en-tête « Support », ex. « Monsieur » /
-   « Madame » / un prénom / une société), chaque titulaire obtient son propre tableau sur la
-   feuille (bandeau à son nom, puis ses catégories, puis ses fonds), plutôt qu'une colonne
-   « Titulaire » mélangeant tout le monde — pour que le conseiller voie d'un coup d'œil tout ce
-   qui est détenu par chacun. Un même fonds détenu à la fois par Monsieur ET Madame apparaît donc
-   dans les 2 tableaux, chacun avec sa propre date d'investissement et son propre statut de
-   pénalité. Une ligne vide (non bordée) sépare 2 tableaux consécutifs, pour que le contour ne
-   referme jamais deux titulaires ensemble. Un seul tableau (sans bandeau de titulaire) si le
-   fichier ne subdivise pas les contrats (client à titulaire unique).
+   **Un bandeau par titulaire, suivi de sa propre ligne d'en-tête** : quand la Consolidation
+   subdivise les contrats par titulaire (ligne juste au-dessus de l'en-tête « Support », ex.
+   « Monsieur » / « Madame » / un prénom / une société), chaque titulaire obtient son propre
+   bandeau (harmonisé en « M. Prénom NOM » / « Mme Prénom NOM » à partir du titre de Consolidation,
+   qui énonce explicitement le genre — jamais deviné ; une société garde son nom tel quel), suivi
+   immédiatement de la ligne d'en-tête (`Fonds`, `ISIN`, ...) répétée, puis de ses catégories et
+   ses fonds — plutôt qu'une colonne « Titulaire » mélangeant tout le monde. Un même fonds détenu
+   à la fois par Monsieur ET Madame apparaît donc dans les 2 sections, chacune avec sa propre date
+   d'investissement et son propre statut de pénalité. Le tableau reste continu (pas de ligne vide
+   ni de coupure de quadrillage entre 2 titulaires) : le contour d'impression englobe l'ensemble
+   des titulaires comme un seul tableau. Une seule ligne d'en-tête, sans bandeau, si le fichier ne
+   subdivise pas les contrats (client à titulaire unique).
 
    La présentation reprend celle de la Consolidation elle-même : un bandeau de titre centré
    « Calendrier des délais de sortie » (même bleu, même police que le titre de Consolidation),
@@ -72,9 +74,10 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
 
    **Fonds fermés** : certains fonds n'acceptent plus aucun rachat (hors cas exceptionnel prévu
    au règlement, ex. décès, invalidité) — la base Althos les marque « fond fermé ». Ces fonds sont
-   retenus dans la feuille **même sans calendrier de rachat**, avec un message explicite
-   « FONDS FERMÉ — sortie non disponible... » dans la colonne Pénalité de sortie, pour que le
-   conseiller ne les découvre pas au moment où le client demande à sortir.
+   retenus dans la feuille **même sans calendrier de rachat**, avec le message « Fonds fermé :
+   aucun rachat possible. » suivi, quand la base le précise (feuille « Calendriers par fonds »),
+   de la durée de vie du fonds et de ses conditions de prorogation, pour que le conseiller ne les
+   découvre pas au moment où le client demande à sortir.
 
    **La feuille Consolidation elle-même est aussi complétée**, avec 2 colonnes `Rachat — cash
    reçu` et `Pénalité de sortie`, en formule vers la valeur déjà calculée dans « Calendrier de
@@ -229,28 +232,29 @@ structurée par `parse_penalite()` dans `scripts/build_data.py` :
 | Type détecté | Exemple de texte source | Comportement dans l'outil |
 |---|---|---|
 | `aucune` | « Aucune pénalité actuellement. » / « Pas de lock-up. » | Cellule **vide** — pas de pénalité, rien à signaler |
-| `seuil` | « Pénalité de 5% ... avant 1 an de détention » | Comparé à la date d'investissement saisie : message « CONCERNÉ » tant que la détention est inférieure au seuil, sinon vide (non concerné) |
-| `soft` | « Soft lock-up de 2% si rachat dans les 12 mois... » | Même calcul que `seuil`, libellé « soft lock-up » ajouté |
+| `seuil` | « Pénalité de 5% ... avant 1 an de détention » | Comparé à la date d'investissement saisie : message « Pénalité de sortie : <texte brut>. Durée de détention actuelle : X mois. » tant que la détention est inférieure au seuil, sinon vide (non concerné) |
+| `soft` | « Soft lock-up de 2% si rachat dans les 12 mois... » | Même calcul que `seuil` |
 | `degressif` | « Pénalité dégressive : 0-18 mois 7,5% · 18-36 mois 5% · ... » | Palier applicable déterminé selon la détention ; 0% = vide (non concerné) |
 | `manuel` | Formulations ambiguës ou taux multiples selon la part détenue (ex. Hg Fusion) | **Aucun calcul automatique** — le texte brut est affiché avec un avertissement « à vérifier manuellement » |
 | `inconnue` | Pas de texte renseigné dans la base | Cellule **vide** — pas de pénalité renseignée dans la base équivaut à pas de pénalité |
-| `ferme` | « fond fermé » (détecté en priorité sur toute autre mention dans le même texte) | Fonds retenu même sans calendrier de rachat, avec le message « FONDS FERMÉ — sortie non disponible... » — aucune sortie possible hors cas exceptionnel prévu au règlement |
+| `ferme` | « fond fermé » (détecté en priorité sur toute autre mention dans le même texte) | Fonds retenu même sans calendrier de rachat, avec le message « Fonds fermé : aucun rachat possible. » suivi (si connue) de la durée de vie du fonds et de ses conditions de prorogation |
 
 Seuls les fonds `seuil` / `soft` / `degressif` ont une pénalité qui dépend de la date
 d'investissement : ce sont eux, et eux seuls, que la page de dépôt automatisé (voir plus haut)
 propose de renseigner directement dans le navigateur avant de générer le fichier.
 
-Le texte brut d'origine (quand il existe) est affiché avec le statut « CONCERNÉ », pour permettre
-une vérification en un coup d'œil avant de répondre à un client — conformément à la procédure de
-vérification par sondage décrite dans la feuille « Lisez-moi » du classeur Calendriers.
+Le texte brut d'origine (quand il existe) est repris tel quel dans le message affiché au
+conseiller, pour permettre une vérification en un coup d'œil avant de répondre à un client —
+conformément à la procédure de vérification par sondage décrite dans la feuille « Lisez-moi » du
+classeur Calendriers.
 
 **La cellule « Pénalité de sortie » reste vide dès qu'il n'y a rien d'actionnable à signaler** :
 pas de pénalité prévue pour ce fonds (`aucune`), pénalité non renseignée dans la base (`inconnue`,
 traité comme « pas de pénalité »), ou délai de pénalité dépassé (`seuil` / `soft` / `degressif`
 avec une détention supérieure au seuil). Un message n'apparaît que dans les cas où le conseiller
-doit agir : une règle ambiguë à vérifier à la main (`manuel`), une pénalité active en cours
-(« CONCERNÉ »), ou une saisie manquante/à corriger (date d'investissement pas encore saisie, ou
-postérieure à aujourd'hui).
+doit agir : une règle ambiguë à vérifier à la main (`manuel`), une pénalité active en cours, ou
+une saisie manquante/à corriger (date d'investissement pas encore saisie, ou postérieure à
+aujourd'hui).
 
 ### Comment les prochaines dates de rachat sont calculées
 
@@ -287,11 +291,14 @@ la feuille `Consolidation`.
 | Pénalité de sortie | Vide dès qu'il n'y a rien à signaler (aucune pénalité prévue, non renseignée dans la base, ou délai dépassé) ; message si concerné par une pénalité active, si la règle est ambiguë (à vérifier manuellement), ou si le fonds est fermé (sortie non disponible) |
 
 Il n'y a pas de colonne « Titulaire » : quand la Consolidation subdivise les contrats par
-titulaire (Monsieur / Madame / société...), chaque titulaire obtient son **propre tableau séparé**
-sur la feuille (bandeau à son nom, puis ses catégories, puis ses fonds), pas une colonne au milieu
-d'un tableau commun — un même fonds détenu à la fois par Monsieur ET Madame apparaît donc dans les
-2 tableaux, chacun avec sa propre date d'investissement et son propre statut de pénalité. Un seul
-tableau (sans bandeau) si le fichier ne subdivise pas les contrats (client à titulaire unique). Si
+titulaire (Monsieur / Madame / société...), chaque titulaire obtient son **propre bandeau**
+(harmonisé en « M. Prénom NOM » / « Mme Prénom NOM » à partir du titre de Consolidation, qui
+énonce explicitement le genre — jamais deviné), suivi de sa propre ligne d'en-tête répétée, puis
+de ses catégories et ses fonds — pas une colonne au milieu d'un tableau commun. Le tableau reste
+continu d'un titulaire à l'autre (pas de ligne vide ni de coupure de quadrillage). Un même fonds
+détenu à la fois par Monsieur ET Madame apparaît donc dans les 2 sections, chacune avec sa propre
+date d'investissement et son propre statut de pénalité. Une seule ligne d'en-tête, sans bandeau,
+si le fichier ne subdivise pas les contrats (client à titulaire unique). Si
 aucun fonds détenu n'a de calendrier de rachat connu (ni fonds fermé), la feuille l'indique
 clairement au lieu d'un tableau vide. Comme dans `ajout-calendrier-sortie.html`, la feuille
 `Consolidation` reçoit aussi 2 colonnes (`Rachat — cash reçu`, `Pénalité de sortie`) collées juste

@@ -287,6 +287,37 @@
     return labels;
   }
 
+  /** Extrait {"nom complet (dans l'ordre du titre)": "M."|"Mme"} depuis le texte du titre de
+   *  Consolidation (ex. "Consolidation Monsieur Gérard LENO**** et Madame Marie MAUN***"), pour
+   *  harmoniser les bandeaux de titulaire de "Calendrier de sortie" uniquement (jamais
+   *  Consolidation elle-même, qui garde son propre texte tel quel). Ne devine jamais un genre :
+   *  ne renvoie que ce que le titre énonce explicitement. */
+  function extractOwnerCivilities(titleText) {
+    const out = {};
+    if (!titleText) return out;
+    const re = /(Monsieur|Madame)\s+([^,;]+?)(?=\s+(?:et|Monsieur|Madame)\b|$)/gi;
+    let m;
+    while ((m = re.exec(String(titleText))) !== null) {
+      const civ = /^monsieur$/i.test(m[1]) ? "M." : "Mme";
+      out[m[2].trim()] = civ;
+    }
+    return out;
+  }
+
+  /** Reformate un libellé de titulaire "NOM Prénom" (tel que lu dans Consolidation) en
+   *  "M. Prénom NOM" / "Mme Prénom NOM" quand le titre de Consolidation permet une
+   *  correspondance sans ambiguïté (mêmes mots, sans deviner un genre) ; renvoie le libellé
+   *  d'origine inchangé sinon (ex. une société). */
+  function harmonizeOwnerLabel(label, civilities) {
+    if (!label) return label;
+    const labelTokens = label.split(/\s+/).filter(Boolean).map((t) => t.toLowerCase()).sort().join("|");
+    for (const name of Object.keys(civilities)) {
+      const nameTokens = name.split(/\s+/).filter(Boolean).map((t) => t.toLowerCase()).sort().join("|");
+      if (labelTokens && labelTokens === nameTokens) return `${civilities[name]} ${name}`;
+    }
+    return label;
+  }
+
   /** Répartit le montant détenu d'une ligne fonds par titulaire (colonne "" si non subdivisé). */
   function holdingByOwner(ws, row, totalCol, ownerLabels) {
     if (!totalCol) return [["", null]]; // structure inconnue : une seule ligne, montant indéterminé
@@ -387,6 +418,7 @@
     // les libellés "Monsieur" / "Madame" / société (juste au-dessus de l'en-tête "Support") —
     // même principe que pour les autres styles de cette feuille : jamais une couleur codée en dur.
     let ownerHeaderStyle = null;
+    let ownerCivilities = {};
     if (showOwnerHeadings) {
       const ownerRow = headerRow - 1;
       for (let c = 3; c < totalCol; c++) {
@@ -396,6 +428,10 @@
           break;
         }
       }
+      // Harmonisation "M. Prénom NOM" / "Mme Prénom NOM" (uniquement sur cette feuille, jamais
+      // sur Consolidation elle-même) à partir du titre de Consolidation, qui énonce explicitement
+      // "Monsieur"/"Madame" pour chaque titulaire — jamais deviné.
+      ownerCivilities = extractOwnerCivilities(srcWs.getCell(1, 1).value);
     }
 
     // 2) Présentation "à la Althos" : bandeau de titre + sous-titre daté (repris tel quel des
@@ -432,7 +468,10 @@
       "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
       "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie",
     ];
-    const HEADER_ROW_OUT = 5; // 1: titre, 2: (vide), 3: sous-titre daté, 4: (vide), 5: en-tête
+    // 1: titre, 2: (vide), 3: sous-titre daté, 4: (vide), 5: début du tableau — soit directement
+    // la ligne d'en-tête (un seul titulaire), soit le 1er bandeau de titulaire suivi de sa propre
+    // ligne d'en-tête (plusieurs titulaires).
+    const HEADER_ROW_OUT = 5;
     const FIRST_DATA_ROW = HEADER_ROW_OUT + 1;
 
     const titleCell = ws.getCell(1, 1);
@@ -449,15 +488,21 @@
     ws.mergeCells(3, 1, 3, headers.length);
     ws.getRow(3).height = srcWs.getRow(3).height || 14;
 
-    headers.forEach((label, i) => {
-      const cell = ws.getCell(HEADER_ROW_OUT, i + 1);
-      cell.value = label;
-      cell.style = JSON.parse(JSON.stringify(headerStyle));
-      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
-      cell.border = gridBorder;
-    });
-    ws.getRow(HEADER_ROW_OUT).height = 22;
-    const widths = [32, 14, 22, 22, 15, 19, 18, 20, 46];
+    // Ligne d'en-tête ("Fonds | ISIN | ..."), réutilisable : écrite une seule fois si le fichier
+    // n'a qu'un seul titulaire, ou répétée juste sous chaque bandeau de titulaire sinon — pour
+    // que chaque section du tableau soit lisible seule, sans remonter chercher les intitulés.
+    function writeHeaderRow(atRow) {
+      headers.forEach((label, i) => {
+        const cell = ws.getCell(atRow, i + 1);
+        cell.value = label;
+        cell.style = JSON.parse(JSON.stringify(headerStyle));
+        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
+        cell.border = gridBorder;
+      });
+      ws.getRow(atRow).height = 22;
+    }
+    if (!showOwnerHeadings) writeHeaderRow(HEADER_ROW_OUT);
+    const widths = [40, 14, 22, 22, 15, 19, 18, 20, 46];
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     HELPER_NAMES.forEach((name) => { ws.getColumn(colNumOf(helperCol(name))).hidden = true; });
@@ -473,20 +518,25 @@
       return { ws, selectedCount: 0, fundRowsScanned: fundRows.length, rowsNeedingDate: [], firstDataRow: null, lastDataRow: null };
     }
 
-    // 3) Un tableau complètement séparé par titulaire (bandeau de titulaire, puis bandeaux de
-    //    catégorie beige, puis une ligne par fonds retenu), avec les formules de calcul.
-    let r = FIRST_DATA_ROW;
+    // 3) Un bandeau par titulaire suivi de sa propre ligne d'en-tête (bandeaux de catégorie beige,
+    //    puis une ligne par fonds retenu, avec les formules de calcul) — le tout dans un seul
+    //    tableau continu, sans ligne vide entre 2 titulaires, pour que le quadrillage et le
+    //    contour d'impression englobent l'ensemble sans "trou".
+    let r = showOwnerHeadings ? HEADER_ROW_OUT : FIRST_DATA_ROW;
     const rowsNeedingDate = [];
-    ownerOrder.forEach((ownerKey, ownerIdx) => {
+    ownerOrder.forEach((ownerKey) => {
       if (showOwnerHeadings) {
         const headingStyle = ownerHeaderStyle || headerStyle;
-        ws.getCell(r, 1).value = ownerKey || "Autres titulaires";
+        const heading = harmonizeOwnerLabel(ownerKey, ownerCivilities);
+        ws.getCell(r, 1).value = heading || "Autres titulaires";
         for (let c = 1; c <= headers.length; c++) {
           ws.getCell(r, c).style = JSON.parse(JSON.stringify(headingStyle));
         }
         ws.mergeCells(r, 1, r, headers.length);
         ws.getCell(r, 1).alignment = { horizontal: "center", vertical: "middle" };
         ws.getRow(r).height = 20;
+        r += 1;
+        writeHeaderRow(r);
         r += 1;
       }
 
@@ -516,6 +566,7 @@
         const dateCell = ws.getCell(r, 3);
         dateCell.numFmt = "dd/mm/yyyy";
         dateCell.font = dataFont;
+        dateCell.alignment = { horizontal: "center", vertical: "middle" };
 
         if (item.needsDate) {
           rowsNeedingDate.push({ row: r, titulaire: item.owner || "", fonds: item.nom, isin: item.isin, categorie: currentCategory || "" });
@@ -585,26 +636,23 @@
         // active à signaler au client.
         setF(ws, `I${r}`,
           `_xlfn.IFS(` +
-          `${S}${r}="ferme","FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds."&IF(${Dv}${r}<>""," "&${Dv}${r},""),` +
+          `${S}${r}="ferme","Fonds fermé : aucun rachat possible."&IF(${Dv}${r}<>""," "&${Dv}${r},""),` +
           `${S}${r}="manuel","À VÉRIFIER MANUELLEMENT : "&${Tc}${r},` +
           `${S}${r}="aucune","",` +
           `${S}${r}="inconnue","",` +
           `${c}="","Saisir une date d'investissement pour statuer sur la pénalité.",` +
           `${Q}${r}="FUTUR","Date d'investissement postérieure à aujourd'hui — vérifier la saisie.",` +
-          `${AD1}${r}>0,"CONCERNÉ : pénalité de "&${AD1}${r}&"% (détention "&${Q}${r}&" mois). "&${Tc}${r},` +
+          `${AD1}${r}>0,"Pénalité de sortie : "&${Tc}${r}&" Durée de détention actuelle : "&${Q}${r}&" mois.",` +
           `TRUE(),"")`
         );
         const penCell = ws.getCell(`I${r}`);
         penCell.font = dataFont;
         penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-
-        ws.getRow(r).height = 60;
+        // Pas de hauteur fixe : laisse Excel ajuster automatiquement la hauteur de ligne au
+        // texte réellement affiché (un texte long ne serait pas coupé par une hauteur figée qui
+        // ne peut pas anticiper la longueur exacte du message calculé par la formule).
         r += 1;
       });
-
-      // Ligne vide (non bordée) entre 2 titulaires, pour que le contour du tableau ne referme
-      // qu'un seul titulaire à la fois, jamais les deux ensemble.
-      if (showOwnerHeadings && ownerIdx < ownerOrder.length - 1) r += 1;
     });
 
     applyPrintSetup(ws, r - 1, headers.length);
@@ -805,6 +853,10 @@
       penCell.font = dataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
       penCell.border = refBorder;
+      // Cette ligne peut avoir une hauteur figée dans le fichier d'origine du conseiller (trop
+      // courte pour notre nouveau texte, potentiellement long) : on l'efface pour repasser en
+      // hauteur automatique, qu'Excel recalcule alors sur le texte réellement affiché.
+      srcWs.getRow(r).height = undefined;
     });
 
     extendPrintArea(srcWs, penCol);
