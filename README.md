@@ -71,6 +71,17 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    retenus dans la feuille **même sans calendrier de rachat**, avec un message explicite
    « 🔒 FONDS FERMÉ — sortie non disponible... » dans la colonne Pénalité de sortie, pour que le
    conseiller ne les découvre pas au moment où le client demande à sortir.
+
+   **La feuille Consolidation elle-même est aussi complétée**, avec 2 colonnes ajoutées à la
+   suite de ses colonnes existantes (jamais au milieu — la dernière colonne utilisée est détectée
+   automatiquement, en tenant compte des cellules fusionnées pour ne jamais écraser un intitulé
+   existant) : `Rachat — cash reçu` et `Pénalité de sortie`. Ce sont des formules qui vont chercher
+   la valeur déjà calculée dans « Calendrier de sortie » pour le même ISIN — **la même information
+   dans les 2 pages**, jamais recalculée séparément — pour que le conseiller ait l'essentiel sous
+   les yeux sans changer d'onglet. Rempli uniquement pour les fonds réellement détenus (même filtre
+   « montant non nul » que « Calendrier de sortie »). Si un même fonds est détenu via plusieurs
+   titulaires (donc plusieurs lignes dans « Calendrier de sortie »), la ligne unique de
+   Consolidation reprend la première trouvée ; le détail par titulaire reste dans l'autre feuille.
 3. **Si des fonds détenus ont une pénalité de sortie qui dépend d'une date d'investissement**
    (règle à seuil, soft lock-up ou dégressive), la page affiche directement une liste de ces
    fonds avec un champ de saisie par fonds — le conseiller renseigne les dates connues sans
@@ -270,9 +281,12 @@ la feuille `Consolidation`.
 
 Si aucun fonds détenu n'a de calendrier de rachat connu (ni fonds fermé), la feuille l'indique
 clairement au lieu d'un tableau vide. Un même fonds détenu via plusieurs titulaires (ex. Monsieur
-ET Madame, chacun via son propre contrat) apparaît sur une ligne par titulaire. Le script Python
-n'a pas d'équivalent au formulaire de saisie de dates dans le navigateur (voir plus haut) : les
-dates s'y saisissent directement dans le fichier Excel généré, comme avant. La présentation (bandeaux de
+ET Madame, chacun via son propre contrat) apparaît sur une ligne par titulaire. Comme dans
+`ajout-calendrier-sortie.html`, la feuille `Consolidation` reçoit aussi 2 colonnes ajoutées à la
+suite de ses colonnes existantes (`Rachat — cash reçu`, `Pénalité de sortie`), en formule vers
+« Calendrier de sortie » pour la même information dans les 2 pages. Le script Python n'a pas
+d'équivalent au formulaire de saisie de dates dans le navigateur (voir plus haut) : les dates s'y
+saisissent directement dans le fichier Excel généré, comme avant. La présentation (bandeaux de
 catégorie beige, en-tête coloré, police) reprend celle de la feuille Consolidation — voir la
 section dédiée à `ajout-calendrier-sortie.html` plus haut pour le détail.
 
@@ -284,8 +298,9 @@ python3 scripts/build_client_workbook.py [chemin_consolidation.xlsx] [chemin_sor
 
 Sans arguments, lit `source/ConsolidationTemplateAlthosAI_V5.xlsx` et écrit
 `output/ConsolidationTemplateAlthosAI_V5_avec_calendrier.xlsx`. Pour l'utiliser sur le classeur
-réel d'un client (avec les montants déjà saisis), passer son chemin en premier argument — la
-feuille `Consolidation` du client n'est jamais modifiée, seule la nouvelle feuille est ajoutée.
+réel d'un client (avec les montants déjà saisis), passer son chemin en premier argument — les
+données de la feuille `Consolidation` du client ne sont jamais modifiées, seules 2 colonnes sont
+ajoutées à la suite (voir ci-dessus), en plus de la nouvelle feuille « Calendrier de sortie ».
 
 ⚠️ **Limite connue de ce script (Python/openpyxl uniquement, n'affecte pas `ajout-calendrier-sortie.html`)** :
 openpyxl ne conserve pas les valeurs mises en cache des formules déjà présentes dans la feuille

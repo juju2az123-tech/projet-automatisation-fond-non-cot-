@@ -227,6 +227,38 @@
     return { categoryRows, fundRows, rowToCategory };
   }
 
+  /** Dernière colonne portant un intitulé sur la ligne d'en-tête (pour savoir où ajouter des
+   *  colonnes à la suite, sans écraser une colonne existante — ex. "Risque / 7"). Balaie une
+   *  large plage fixe plutôt que `actualColumnCount` : ce dernier peut sous-compter quand la
+   *  dernière colonne utile est une cellule "esclave" d'une fusion (ExcelJS lui fait quand même
+   *  refléter la valeur de la cellule maîtresse en lecture — voir isMergedFollower ci-dessous). */
+  function findLastHeaderColumn(ws, headerRow) {
+    const upper = Math.max(ws.columnCount || 0, ws.actualColumnCount || 0, 200);
+    let last = 1;
+    for (let c = 1; c <= upper; c++) {
+      const v = ws.getCell(headerRow, c).value;
+      if (v !== null && v !== undefined && String(v).trim() !== "") last = c;
+    }
+    return last;
+  }
+
+  /** Vrai si la cellule est "esclave" d'une fusion (pas la cellule maîtresse en haut à gauche) :
+   *  y écrire une valeur la redirigerait silencieusement vers la cellule maîtresse dans ExcelJS
+   *  (contrairement à openpyxl, qui refuse carrément l'écriture sur ce type de cellule). */
+  function isMergedFollower(ws, row, col) {
+    const cell = ws.getCell(row, col);
+    return !!(cell.isMerged && cell.master && cell.master.address !== cell.address);
+  }
+
+  /** Première colonne à partir de `from` qui n'est pas une cellule esclave d'une fusion sur
+   *  cette ligne — pour ne jamais faire atterrir une nouvelle colonne au milieu d'une fusion
+   *  existante (ex. "Mouvements en cours" fusionnée sur 2 colonnes dans certains fichiers). */
+  function nextSafeColumn(ws, row, from) {
+    let c = from;
+    while (isMergedFollower(ws, row, c)) c++;
+    return c;
+  }
+
   /** Montant total détenu sur une ligne fonds : somme des colonnes "Contrat" (3..totalCol-1). */
   function holdingAmount(ws, row, totalCol) {
     if (!totalCol) return null; // inconnu : on ne filtre pas sur le montant
@@ -409,7 +441,7 @@
       ws.getCell(FIRST_DATA_ROW, 1).alignment = { wrapText: true, vertical: "middle" };
       ws.getRow(FIRST_DATA_ROW).height = 30;
       applyPrintSetup(ws, FIRST_DATA_ROW, headers.length);
-      return { ws, selectedCount: 0, fundRowsScanned: fundRows.length, rowsNeedingDate: [] };
+      return { ws, selectedCount: 0, fundRowsScanned: fundRows.length, rowsNeedingDate: [], firstDataRow: null, lastDataRow: null };
     }
 
     // 3) Bandeaux de catégorie (beige, comme dans Consolidation) + une ligne par fonds/titulaire
@@ -528,7 +560,67 @@
     });
 
     applyPrintSetup(ws, r - 1, headers.length);
-    return { ws, selectedCount: selected.length, fundRowsScanned: fundRows.length, rowsNeedingDate };
+    return {
+      ws, selectedCount: selected.length, fundRowsScanned: fundRows.length, rowsNeedingDate,
+      firstDataRow: FIRST_DATA_ROW, lastDataRow: r - 1,
+    };
+  }
+
+  /**
+   * Ajoute 2 colonnes à la suite du tableau Consolidation lui-même — "Rachat — cash reçu" et
+   * "Pénalité de sortie" — pour que le conseiller ait l'essentiel sous les yeux sans changer
+   * d'onglet. Ce sont des formules qui vont chercher, par ISIN, la valeur déjà calculée dans la
+   * feuille "Calendrier de sortie" : une seule source de vérité, jamais recalculée en double. Ne
+   * remplit que les fonds réellement détenus (même filtre que "Calendrier de sortie"). Si un même
+   * fonds est détenu via plusieurs titulaires (plusieurs lignes dans "Calendrier de sortie"), la
+   * ligne unique de Consolidation ne peut représenter qu'un seul statut : la première trouvée par
+   * MATCH — la répartition détaillée par titulaire reste disponible dans "Calendrier de sortie".
+   */
+  function addConsolidationColumns(srcWs, headerRow, totalCol, exitSheetName, firstDataRow, lastDataRow) {
+    if (!lastDataRow || lastDataRow < firstDataRow) return; // aucun fonds retenu, rien à référencer
+
+    const lastCol = findLastHeaderColumn(srcWs, headerRow);
+    const cashCol = nextSafeColumn(srcWs, headerRow, lastCol + 1);
+    const penCol = nextSafeColumn(srcWs, headerRow, cashCol + 1);
+
+    const headerStyle = cloneStyle(srcWs.getCell(headerRow, 1));
+    const baseFontName = (headerStyle.font && headerStyle.font.name) || "Calibri";
+    const baseFontSize = (headerStyle.font && headerStyle.font.size) || 10;
+    const dataFont = { name: baseFontName, size: baseFontSize, bold: false };
+
+    [[cashCol, "Rachat — cash reçu", 16], [penCol, "Pénalité de sortie", 46]].forEach(([col, label, width]) => {
+      const cell = srcWs.getCell(headerRow, col);
+      cell.value = label;
+      cell.style = JSON.parse(JSON.stringify(headerStyle));
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      srcWs.getColumn(col).width = width;
+    });
+
+    const isinRange = `'${exitSheetName}'!$C$${firstDataRow}:$C$${lastDataRow}`;
+    const cashRange = `'${exitSheetName}'!$I$${firstDataRow}:$I$${lastDataRow}`;
+    const penRange = `'${exitSheetName}'!$J$${firstDataRow}:$J$${lastDataRow}`;
+
+    const { fundRows } = classifyRows(srcWs, headerRow);
+    fundRows.forEach((r) => {
+      const isinRaw = srcWs.getCell(r, 2).value;
+      const isin = typeof isinRaw === "string" ? isinRaw.trim() : isinRaw;
+      if (!isin) return;
+      const amount = holdingAmount(srcWs, r, totalCol);
+      const isHeld = amount === null || Math.abs(amount) > 0.005;
+      if (!isHeld) return;
+
+      const b = `"${isin}"`;
+      setF(srcWs, `${colLetter(cashCol)}${r}`, `IFERROR(INDEX(${cashRange},MATCH(${b},${isinRange},0)),"")`);
+      const cashCell = srcWs.getCell(r, cashCol);
+      cashCell.numFmt = "dd/mm/yyyy";
+      cashCell.font = dataFont;
+      cashCell.alignment = { horizontal: "center", vertical: "middle" };
+
+      setF(srcWs, `${colLetter(penCol)}${r}`, `IFERROR(INDEX(${penRange},MATCH(${b},${isinRange},0)),"")`);
+      const penCell = srcWs.getCell(r, penCol);
+      penCell.font = dataFont;
+      penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+    });
   }
 
   /** Zone d'impression = tout le tableau, mise à l'échelle sur une page en largeur, paysage —
@@ -591,8 +683,13 @@
     const wsCal = writeBddCalendrier(workbook, CALENDAR);
     const wsPen = writeBddPenalites(workbook, FUNDS);
 
-    const { ws: exitWs, selectedCount, fundRowsScanned, rowsNeedingDate } =
+    const { ws: exitWs, selectedCount, fundRowsScanned, rowsNeedingDate, firstDataRow, lastDataRow } =
       buildExitSheet(workbook, srcWs, headerRow, CALENDAR, wsCal.rowCount, wsPen.rowCount, fundsByIsin);
+
+    // Complète aussi Consolidation elle-même avec 2 colonnes (cash reçu / pénalité de sortie),
+    // en formule vers "Calendrier de sortie" — même information, une seule source de vérité.
+    const totalCol = findTotalColumn(srcWs, headerRow);
+    addConsolidationColumns(srcWs, headerRow, totalCol, exitWs.name, firstDataRow, lastDataRow);
 
     // Ordre des feuilles : Consolidation, Calendrier de sortie, puis le reste tel quel.
     let order = 1;

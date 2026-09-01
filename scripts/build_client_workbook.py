@@ -73,6 +73,33 @@ def find_total_column(ws, header_row):
     return None
 
 
+def find_last_header_column(ws, header_row):
+    """Dernière colonne non vide de la ligne d'en-tête de Consolidation, pour savoir où ajouter
+    de nouvelles colonnes sans écraser celles qui existent déjà."""
+    last = 1
+    for c in range(1, ws.max_column + 1):
+        if ws.cell(row=header_row, column=c).value not in (None, ""):
+            last = c
+    return last
+
+
+def is_merged_follower(ws, row, col):
+    """Vrai si la cellule est "esclave" d'une fusion (pas la cellule maîtresse en haut à
+    gauche) : openpyxl refuse toute écriture dessus (AttributeError)."""
+    from openpyxl.cell.cell import MergedCell
+    return isinstance(ws.cell(row=row, column=col), MergedCell)
+
+
+def next_safe_column(ws, row, start):
+    """Première colonne à partir de `start` qui n'est pas une cellule esclave d'une fusion sur
+    cette ligne — pour ne jamais faire atterrir une nouvelle colonne au milieu d'une fusion
+    existante (ex. "Mouvements en cours" fusionnée sur 2 colonnes dans certains fichiers)."""
+    c = start
+    while is_merged_follower(ws, row, c):
+        c += 1
+    return c
+
+
 def classify_rows(ws, header_row):
     """Une ligne de catégorie (bandeau) est en gras + fond uni, sans ISIN en colonne B.
 
@@ -378,7 +405,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         ws.cell(row=FIRST_DATA_ROW, column=1).alignment = Alignment(wrap_text=True, vertical="center")
         ws.row_dimensions[FIRST_DATA_ROW].height = 30
         apply_print_setup(ws, FIRST_DATA_ROW, len(headers))
-        return ws, 0, len(fund_rows)
+        return ws, 0, len(fund_rows), None, None
 
     r = FIRST_DATA_ROW
     current_category = object()  # sentinelle : force le 1er bandeau même si catégorie ""
@@ -492,7 +519,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         r += 1
 
     apply_print_setup(ws, r - 1, len(headers))
-    return ws, len(selected), len(fund_rows)
+    return ws, len(selected), len(fund_rows), FIRST_DATA_ROW, r - 1
 
 
 def apply_print_setup(ws, last_row, last_visible_col):
@@ -509,6 +536,54 @@ def apply_print_setup(ws, last_row, last_visible_col):
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+
+def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, first_data_row, last_data_row):
+    """Ajoute 2 colonnes directement sur Consolidation ("Rachat — cash reçu" et "Pénalité de
+    sortie"), une par fonds réellement détenu, en formule vers la feuille "Calendrier de sortie"
+    déjà construite : même information dans les 2 pages, une seule source de vérité (pas de
+    calcul dupliqué)."""
+    if not last_data_row or last_data_row < first_data_row:
+        return  # aucun fonds retenu, rien à référencer
+
+    last_col = find_last_header_column(src_ws, header_row)
+    cash_col = next_safe_column(src_ws, header_row, last_col + 1)
+    pen_col = next_safe_column(src_ws, header_row, cash_col + 1)
+
+    header_style = copy(src_ws.cell(row=header_row, column=1)._style)
+    header_font = src_ws.cell(row=header_row, column=1).font
+    data_font = Font(name=header_font.name, size=header_font.size, bold=False)
+
+    for col, label, width in ((cash_col, "Rachat — cash reçu", 16), (pen_col, "Pénalité de sortie", 46)):
+        cell = src_ws.cell(row=header_row, column=col, value=label)
+        cell._style = copy(header_style)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        src_ws.column_dimensions[get_column_letter(col)].width = width
+
+    isin_range = f"'{exit_sheet_name}'!$C${first_data_row}:$C${last_data_row}"
+    cash_range = f"'{exit_sheet_name}'!$I${first_data_row}:$I${last_data_row}"
+    pen_range = f"'{exit_sheet_name}'!$J${first_data_row}:$J${last_data_row}"
+
+    _, fund_rows, _ = classify_rows(src_ws, header_row)
+    for r in fund_rows:
+        isin_raw = src_ws.cell(row=r, column=2).value
+        isin = isin_raw.strip() if isinstance(isin_raw, str) else isin_raw
+        if not isin:
+            continue
+        amount = holding_amount(src_ws, r, total_col)
+        is_held = amount is None or abs(amount) > 0.005
+        if not is_held:
+            continue
+
+        b = f'"{isin}"'
+        cash_cell = src_ws.cell(row=r, column=cash_col, value=f"=IFERROR(INDEX({cash_range},MATCH({b},{isin_range},0)),\"\")")
+        cash_cell.number_format = "dd/mm/yyyy"
+        cash_cell.font = data_font
+        cash_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        pen_cell = src_ws.cell(row=r, column=pen_col, value=f"=IFERROR(INDEX({pen_range},MATCH({b},{isin_range},0)),\"\")")
+        pen_cell.font = data_font
+        pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
 
 def main():
@@ -534,7 +609,14 @@ def main():
 
     ws_cal = write_bdd_calendrier(wb, calendar)
     ws_pen = write_bdd_penalites(wb, funds)
-    _, selected_count, fund_rows_count = build_exit_sheet(wb, src_ws, calendar, ws_cal.max_row, ws_pen.max_row, funds_by_isin)
+    exit_ws, selected_count, fund_rows_count, first_data_row, last_data_row = build_exit_sheet(
+        wb, src_ws, calendar, ws_cal.max_row, ws_pen.max_row, funds_by_isin)
+
+    # Complète aussi Consolidation elle-même avec 2 colonnes (cash reçu / pénalité de sortie),
+    # en formule vers "Calendrier de sortie" — même information, une seule source de vérité.
+    header_row = find_header_row(src_ws)
+    total_col = find_total_column(src_ws, header_row)
+    add_consolidation_columns(src_ws, header_row, total_col, exit_ws.title, first_data_row, last_data_row)
 
     wb.active = wb.sheetnames.index("Calendrier de sortie")
     wb.save(out_path)
