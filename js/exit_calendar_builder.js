@@ -149,17 +149,17 @@
   function writeBddPenalites(workbook, funds) {
     const ws = workbook.addWorksheet("BDD_Penalites");
     const headers = ["ISIN", "Nom", "Kind", "Max1", "Rate1", "Max2", "Rate2",
-      "Max3", "Rate3", "Max4", "Rate4", "Rate5", "RawText"];
+      "Max3", "Rate3", "Max4", "Rate4", "Rate5", "RawText", "DureeVie"];
     ws.addRow(headers);
 
     funds.forEach((f) => {
       if (!f.isin) return;
       const pen = f.penalite || { kind: "inconnue", raw: null, tiers: [] };
       const tiers9 = buildTierColumns(pen);
-      ws.addRow([f.isin, f.nom, pen.kind, ...tiers9, pen.raw || ""]);
+      ws.addRow([f.isin, f.nom, pen.kind, ...tiers9, pen.raw || "", pen.dureeVie || ""]);
     });
 
-    const widths = [14, 34, 11, 7, 7, 7, 7, 7, 7, 7, 7, 7, 60];
+    const widths = [14, 34, 11, 7, 7, 7, 7, 7, 7, 7, 7, 7, 60, 60];
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
     ws.getRow(1).font = { bold: true };
     ws.state = "hidden";
@@ -307,11 +307,11 @@
   const HELPER_NAMES = [
     "has_sortie", "next_cutoff_sortie", "next_val_sortie", "next_exec_sortie",
     "next_pub_sortie", "next_cash_sortie",
-    "months_held", "pen_found", "kind", "raw",
+    "months_held", "pen_found", "kind", "raw", "duree_vie",
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
     "rate_now",
   ];
-  const HELPER_FIRST_COL = 11; // K (visible columns now go up to J : Titulaire ajouté en colonne A)
+  const HELPER_FIRST_COL = 11; // K (colonnes visibles jusqu'en I : Fonds, ISIN, Date, 5 dates de rachat, Pénalité)
 
   function helperCol(name) {
     return colLetter(HELPER_FIRST_COL + HELPER_NAMES.indexOf(name));
@@ -530,6 +530,7 @@
         const R = helperCol("pen_found");
         const S = helperCol("kind");
         const Tc = helperCol("raw");
+        const Dv = helperCol("duree_vie");
         const U1 = helperCol("max1"), V1 = helperCol("rate1"), W1 = helperCol("max2"), X1 = helperCol("rate2"),
           Y1 = helperCol("max3"), Z1 = helperCol("rate3"), AA1 = helperCol("max4"), AB1 = helperCol("rate4"), AC1 = helperCol("rate5");
         const AD1 = helperCol("rate_now");
@@ -555,6 +556,7 @@
         setF(ws, `${R}${r}`, `COUNTIF(${pen("A")},${b})`);
         setF(ws, `${S}${r}`, `IF(${R}${r}=0,"inconnue",INDEX(${pen("C")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${Tc}${r}`, `IF(${R}${r}=0,"",INDEX(${pen("M")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${Dv}${r}`, `IF(${R}${r}=0,"",INDEX(${pen("N")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${U1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("D")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${V1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("E")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${W1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("F")},MATCH(${b},${pen("A")},0)))`);
@@ -583,7 +585,7 @@
         // active à signaler au client.
         setF(ws, `I${r}`,
           `_xlfn.IFS(` +
-          `${S}${r}="ferme","FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds.",` +
+          `${S}${r}="ferme","FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds."&IF(${Dv}${r}<>""," "&${Dv}${r},""),` +
           `${S}${r}="manuel","À VÉRIFIER MANUELLEMENT : "&${Tc}${r},` +
           `${S}${r}="aucune","",` +
           `${S}${r}="inconnue","",` +
@@ -706,6 +708,23 @@
     return !!(top.isMerged && bottom.isMerged && top.master && bottom.master && top.master.address === bottom.master.address);
   }
 
+  /** Étend la zone d'impression déjà définie sur `ws` (le contour bleu visible dans Excel) pour
+   *  couvrir au minimum jusqu'à la colonne `minColNeeded` — sans jamais la réduire. Ne fait rien
+   *  si aucune zone d'impression n'est définie sur cette feuille. */
+  function extendPrintArea(ws, minColNeeded) {
+    const area = ws.pageSetup.printArea;
+    if (!area) return;
+    const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(area.split("!").pop());
+    if (!match) return;
+    const minCol = colNumOf(match[1]);
+    const minRow = Number(match[2]);
+    const maxCol = colNumOf(match[3]);
+    const maxRow = Number(match[4]);
+    if (minColNeeded > maxCol) {
+      ws.pageSetup.printArea = `${colLetter(minCol)}${minRow}:${colLetter(minColNeeded)}${maxRow}`;
+    }
+  }
+
   function addConsolidationColumns(srcWs, headerRow, totalCol, exitSheetName, firstDataRow, lastDataRow) {
     if (!lastDataRow || lastDataRow < firstDataRow) return; // aucun fonds retenu, rien à référencer
 
@@ -742,7 +761,12 @@
       cell.value = label;
       cell.style = JSON.parse(JSON.stringify(headerStyle));
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-      srcWs.getColumn(col).width = width;
+      const column = srcWs.getColumn(col);
+      column.width = width;
+      // Toujours visible : la colonne peut hériter un état masqué du fichier d'origine si sa
+      // position correspondait déjà à une colonne cachée (ex. l'ancien "Mouvements en cours"
+      // déplacé) sans qu'on l'ait explicitement remise à zéro.
+      column.hidden = false;
       if (twoRowHeader) {
         const bottomCell = srcWs.getCell(headerRow + 1, col);
         bottomCell.style = JSON.parse(JSON.stringify(headerStyle));
@@ -763,18 +787,27 @@
       const isHeld = amount === null || Math.abs(amount) > 0.005;
       if (!isHeld) return;
 
+      // Bordure reprise de la colonne existante juste à gauche, sur cette même ligne, pour que
+      // le quadrillage de Consolidation se poursuive visuellement sur les 2 nouvelles colonnes
+      // au lieu de s'arrêter net.
+      const refBorder = JSON.parse(JSON.stringify(srcWs.getCell(r, Math.max(1, cashCol - 1)).border || {}));
+
       const b = `"${isin}"`;
       setF(srcWs, `${colLetter(cashCol)}${r}`, `IFERROR(INDEX(${cashRange},MATCH(${b},${isinRange},0)),"")`);
       const cashCell = srcWs.getCell(r, cashCol);
       cashCell.numFmt = "dd/mm/yyyy";
       cashCell.font = dataFont;
       cashCell.alignment = { horizontal: "center", vertical: "middle" };
+      cashCell.border = refBorder;
 
       setF(srcWs, `${colLetter(penCol)}${r}`, `IFERROR(INDEX(${penRange},MATCH(${b},${isinRange},0)),"")`);
       const penCell = srcWs.getCell(r, penCol);
       penCell.font = dataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+      penCell.border = refBorder;
     });
+
+    extendPrintArea(srcWs, penCol);
   }
 
   /** Zone d'impression = tout le tableau, mise à l'échelle sur une page en largeur, paysage —

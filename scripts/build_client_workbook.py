@@ -45,7 +45,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_data import (  # noqa: E402
     load_suivi, merge_extra_from_calendriers_par_fonds, load_calendrier,
-    load_calendrier_par_fonds, merge_calendriers,
+    load_calendrier_par_fonds, merge_calendriers, attach_duree_vie,
 )
 
 CAL_FILE = ROOT / "source" / "Calendriers_de_fonds_Althos.xlsx"
@@ -160,6 +160,20 @@ def shift_column_block(ws, from_start, from_end, to_start):
     for mc in moved_merges:
         ws.merge_cells(start_row=mc.min_row, start_column=mc.min_col + shift,
                         end_row=mc.max_row, end_column=mc.max_col + shift)
+
+
+def extend_print_area(ws, min_col_needed):
+    """Étend la zone d'impression déjà définie sur `ws` (le contour bleu visible dans Excel) pour
+    couvrir au minimum jusqu'à la colonne `min_col_needed` — sans jamais la réduire. Ne fait rien
+    si aucune zone d'impression n'est définie sur cette feuille."""
+    area = ws.print_area
+    if not area:
+        return
+    range_part = area.split("!")[-1]  # ws.print_area peut être préfixé par le nom de la feuille
+    from openpyxl.utils.cell import range_boundaries
+    min_col, min_row, max_col, max_row = range_boundaries(range_part)
+    if min_col_needed > max_col:
+        ws.print_area = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(min_col_needed)}{max_row}"
 
 
 def has_two_row_header(ws, header_row, col):
@@ -325,7 +339,7 @@ def _to_date(iso):
 def write_bdd_penalites(wb, funds):
     ws = wb.create_sheet("BDD_Penalites")
     headers = ["ISIN", "Nom", "Kind", "Max1", "Rate1", "Max2", "Rate2",
-               "Max3", "Rate3", "Max4", "Rate4", "Rate5", "RawText"]
+               "Max3", "Rate3", "Max4", "Rate4", "Rate5", "RawText", "DureeVie"]
     ws.append(headers)
     for key, f in funds.items():
         isin = f["isin"]
@@ -333,8 +347,8 @@ def write_bdd_penalites(wb, funds):
             continue
         pen = f["penalite"]
         tiers9 = build_tier_columns(pen)
-        ws.append([isin, f["nom"], pen["kind"], *tiers9, pen["raw"] or ""])
-    for col, width in zip("ABCDEFGHIJKLM", [14, 34, 11, 7, 7, 7, 7, 7, 7, 7, 7, 7, 60]):
+        ws.append([isin, f["nom"], pen["kind"], *tiers9, pen["raw"] or "", pen.get("dureeVie") or ""])
+    for col, width in zip("ABCDEFGHIJKLMN", [14, 34, 11, 7, 7, 7, 7, 7, 7, 7, 7, 7, 60, 60]):
         ws.column_dimensions[col].width = width
     for c in ws[1]:
         c.font = openpyxl.styles.Font(bold=True)
@@ -354,11 +368,11 @@ def format_date_fr(d):
 HELPER_NAMES = [
     "has_sortie", "next_cutoff_sortie", "next_val_sortie", "next_exec_sortie",
     "next_pub_sortie", "next_cash_sortie",
-    "months_held", "pen_found", "kind", "raw",
+    "months_held", "pen_found", "kind", "raw", "duree_vie",
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
     "rate_now",
 ]
-HELPER_FIRST_COL = 11  # K (colonnes visibles jusqu'en J désormais : Titulaire ajouté en colonne A)
+HELPER_FIRST_COL = 11  # K (colonnes visibles jusqu'en I : Fonds, ISIN, Date, 5 dates de rachat, Pénalité)
 
 
 def helper_col(name):
@@ -560,6 +574,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             R = helper_col("pen_found")
             S = helper_col("kind")
             Tc = helper_col("raw")
+            Dv = helper_col("duree_vie")
             U1, V1, W1, X1, Y1, Z1, AA1, AB1, AC1 = (helper_col("max1"), helper_col("rate1"), helper_col("max2"),
                                                       helper_col("rate2"), helper_col("max3"), helper_col("rate3"),
                                                       helper_col("max4"), helper_col("rate4"), helper_col("rate5"))
@@ -590,6 +605,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             ws[f"{R}{r}"] = f'=COUNTIF({pen("A")},{b})'
             ws[f"{S}{r}"] = f'=IF({R}{r}=0,"inconnue",INDEX({pen("C")},MATCH({b},{pen("A")},0)))'
             ws[f"{Tc}{r}"] = f'=IF({R}{r}=0,"",INDEX({pen("M")},MATCH({b},{pen("A")},0)))'
+            ws[f"{Dv}{r}"] = f'=IF({R}{r}=0,"",INDEX({pen("N")},MATCH({b},{pen("A")},0)))'
             ws[f"{U1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("D")},MATCH({b},{pen("A")},0)))'
             ws[f"{V1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("E")},MATCH({b},{pen("A")},0)))'
             ws[f"{W1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("F")},MATCH({b},{pen("A")},0)))'
@@ -618,7 +634,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             # main, ou pénalité active à signaler au client.
             ws[f"I{r}"] = (
                 f'=_xlfn.IFS('
-                f'{S}{r}="ferme","FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds.",'
+                f'{S}{r}="ferme","FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds."&IF({Dv}{r}<>""," "&{Dv}{r},""),'
                 f'{S}{r}="manuel","À VÉRIFIER MANUELLEMENT : "&{Tc}{r},'
                 f'{S}{r}="aucune","",'
                 f'{S}{r}="inconnue","",'
@@ -699,7 +715,12 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         cell = src_ws.cell(row=header_row, column=col, value=label)
         cell._style = copy(header_style)
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        src_ws.column_dimensions[get_column_letter(col)].width = width
+        col_letter = get_column_letter(col)
+        src_ws.column_dimensions[col_letter].width = width
+        # Toujours visible : la colonne peut hériter un état masqué du fichier d'origine si sa
+        # lettre correspondait déjà à une colonne cachée (ex. une colonne d'aide de l'ancien
+        # "Mouvements en cours" déplacé) sans qu'on l'ait explicitement remise à zéro.
+        src_ws.column_dimensions[col_letter].hidden = False
         if two_row_header:
             src_ws.cell(row=header_row + 1, column=col)._style = copy(header_style)
             src_ws.merge_cells(start_row=header_row, start_column=col, end_row=header_row + 1, end_column=col)
@@ -719,15 +740,24 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         if not is_held:
             continue
 
+        # Bordure reprise de la colonne existante juste à gauche, sur cette même ligne, pour que
+        # le quadrillage de Consolidation se poursuive visuellement sur les 2 nouvelles colonnes
+        # au lieu de s'arrêter net.
+        ref_border = copy(src_ws.cell(row=r, column=max(1, cash_col - 1)).border)
+
         b = f'"{isin}"'
         cash_cell = src_ws.cell(row=r, column=cash_col, value=f"=IFERROR(INDEX({cash_range},MATCH({b},{isin_range},0)),\"\")")
         cash_cell.number_format = "dd/mm/yyyy"
         cash_cell.font = data_font
         cash_cell.alignment = Alignment(horizontal="center", vertical="center")
+        cash_cell.border = ref_border
 
         pen_cell = src_ws.cell(row=r, column=pen_col, value=f"=IFERROR(INDEX({pen_range},MATCH({b},{isin_range},0)),\"\")")
         pen_cell.font = data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        pen_cell.border = ref_border
+
+    extend_print_area(src_ws, pen_col)
 
 
 def main():
@@ -738,6 +768,7 @@ def main():
     wb_cal = openpyxl.load_workbook(CAL_FILE, data_only=True)
     funds = load_suivi(wb_cal)
     funds = merge_extra_from_calendriers_par_fonds(wb_cal, funds)
+    funds = attach_duree_vie(wb_cal, funds)
     calendar = load_calendrier(wb_cal)
     calendar = merge_calendriers(calendar, load_calendrier_par_fonds(wb_cal))
     for f in funds.values():

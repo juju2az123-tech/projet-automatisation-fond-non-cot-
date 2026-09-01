@@ -1,6 +1,6 @@
 // Fichier généré automatiquement par scripts/build_data.py — ne pas éditer à la main.
 window.FUNDS_DATA = {
-  "generatedAt": "2026-09-01 12:12",
+  "generatedAt": "2026-09-01 14:18",
   "sourceFiles": [
     "Calendriers_de_fonds_Althos.xlsx",
     "Bibliotheque_de_fonds_Althos.xlsx"
@@ -393,7 +393,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 6 ans, prorogeable de 2 périodes successives d'un an, soit 8 ans maximum après accord du comité des investisseurs."
       },
       "key": "FR0014007HA4",
       "hasCalendar": false,
@@ -507,7 +508,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 99 ans, échéance au plus tard le 4 novembre 2119, sauf dissolution ou réduction anticipée prévue au règlement."
       },
       "key": "FR0013533619",
       "hasCalendar": false,
@@ -531,7 +533,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "Fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 99 ans à compter de la constitution, sauf dissolution anticipée."
       },
       "key": "FR001400K4L0",
       "hasCalendar": false,
@@ -1083,7 +1086,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 6 ans, prorogeable 2 fois 1 an, soit une durée maximale de 8 ans (jusqu'au 30/06/2030)."
       },
       "key": "FR0013224375",
       "hasCalendar": false,
@@ -1275,7 +1279,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "Fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 10 ans, prorogeable 2 fois 1 an, soit 12 ans maximum."
       },
       "key": "FR0013415056",
       "hasCalendar": false,
@@ -1299,7 +1304,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : Jusqu'au 31 décembre 2027, avec possibilité de prorogation de 2 fois 1 an, soit jusqu'au 31 décembre 2029."
       },
       "key": "FR0013411451",
       "hasCalendar": false,
@@ -1347,7 +1353,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 6 ans jusqu'au 27/11/2028, prorogeable 2 fois 1 an (soit 8 ans maximum)."
       },
       "key": "FR001400C5U8",
       "hasCalendar": false,
@@ -1371,7 +1378,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 6 ans (expiration prévue le 27/11/2028), prorogeable 2 fois 1 an, soit jusqu'à 8 ans maximum."
       },
       "key": "FR001400C5V6",
       "hasCalendar": false,
@@ -1515,7 +1523,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 4 ans à compter du premier closing, avec possibilité de prorogation de 3 fois 1 an, soit jusqu'à 7 ans maximum."
       },
       "key": "FR001400IEE6",
       "hasCalendar": false,
@@ -1539,7 +1548,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 4 ans à compter du premier closing, prorogeable de 3 périodes successives d'un an, soit jusqu'à 7 ans maximum."
       },
       "key": "FR0014001LJ0",
       "hasCalendar": false,
@@ -1563,7 +1573,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "Fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 99 ans."
       },
       "key": "FR001400IL92",
       "hasCalendar": false,
@@ -2615,7 +2626,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 6 ans (expiration prévue le 27/11/2028), prorogeable 2 fois 1 an, soit jusqu'à 8 ans maximum."
       },
       "key": "FR001400C5W4",
       "hasCalendar": false,
@@ -2903,7 +2915,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable."
       },
       "key": "FR0014009FU2",
       "hasCalendar": false,
@@ -2927,7 +2940,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable."
       },
       "key": "FR0014009FV0",
       "hasCalendar": false,
@@ -2951,7 +2965,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable."
       },
       "key": "FR0014005Z14",
       "hasCalendar": false,
@@ -2975,7 +2990,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "Fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable."
       },
       "key": "FR0014005Z22",
       "hasCalendar": false,

@@ -355,7 +355,7 @@
       const row = parseInt(input.getAttribute("data-row"), 10);
       const parts = input.value.split("-").map(Number); // input.value = "yyyy-mm-dd"
       const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-      const cell = pendingExitWs.getCell(row, 4);
+      const cell = pendingExitWs.getCell(row, 3); // colonne "Date d'investissement" (plus de colonne "Titulaire" devant)
       cell.value = d;
       cell.numFmt = "dd/mm/yyyy";
     });

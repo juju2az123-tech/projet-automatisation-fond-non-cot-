@@ -166,6 +166,52 @@ def merge_extra_from_calendriers_par_fonds(wb, funds):
 
 
 # ---------------------------------------------------------------------------
+# 3bis) Durée de vie (+ prorogation) des fonds fermés — texte libre trouvé
+#    dans la colonne "Durée d'investissement obligatoire dans le fond" de
+#    "Calendriers par fonds" : chaque information y est déjà séparée par un
+#    retour à la ligne, préfixée par son intitulé (ex. "Durée de vie du
+#    fonds : 6 ans jusqu'au 27/11/2028, prorogeable 2 fois 1 an (soit 8 ans
+#    maximum)."). Repris tel quel plutôt que reparsé en valeurs numériques :
+#    la formulation varie trop d'un fonds à l'autre pour en extraire des
+#    chiffres de façon fiable sans risque d'erreur.
+# ---------------------------------------------------------------------------
+
+def extract_duree_vie(raw):
+    if not raw or not isinstance(raw, str):
+        return None
+    for segment in raw.split("\n"):
+        segment = segment.strip()
+        if segment.lower().startswith("durée de vie du fonds"):
+            return segment
+    return None
+
+
+def load_duree_vie_by_isin(wb):
+    """ISIN -> phrase "Durée de vie du fonds : ..." (durée + prorogation éventuelle), pour les
+    fonds fermés — seule source de cette information dans la base Althos."""
+    ws = wb["Calendriers par fonds"]
+    out = {}
+    for r in ws.iter_rows(min_row=2, values_only=True):
+        isin = r[0]
+        extracted = extract_duree_vie(r[16] if len(r) > 16 else None)
+        if isin and extracted:
+            out[isin] = extracted
+    return out
+
+
+def attach_duree_vie(wb, funds):
+    """Ajoute penalite['dureeVie'] pour chaque fonds fermé dont l'information est disponible —
+    absente (clé non ajoutée) sinon, plutôt qu'une chaîne vide qui laisserait croire à une
+    recherche infructueuse plutôt qu'à une donnée simplement non trouvée dans la base."""
+    duree_vie_by_isin = load_duree_vie_by_isin(wb)
+    for f in funds.values():
+        pen = f.get("penalite") or {}
+        if pen.get("kind") == "ferme" and f.get("isin") in duree_vie_by_isin:
+            pen["dureeVie"] = duree_vie_by_isin[f["isin"]]
+    return funds
+
+
+# ---------------------------------------------------------------------------
 # 4) Feuille "Calendriers" (une ligne = fonds/année/type/mois) → calendrier
 #    mensuel exploitable par l'app pour calculer les prochaines dates d'ordre.
 # ---------------------------------------------------------------------------
@@ -320,6 +366,7 @@ def main():
 
     funds = load_suivi(wb_cal)
     funds = merge_extra_from_calendriers_par_fonds(wb_cal, funds)
+    funds = attach_duree_vie(wb_cal, funds)
     calendar = load_calendrier(wb_cal)
     calendar = merge_calendriers(calendar, load_calendrier_par_fonds(wb_cal))
     bib_attrs = load_bibliotheque(wb_bib)
