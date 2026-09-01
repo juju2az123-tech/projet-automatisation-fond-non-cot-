@@ -567,6 +567,10 @@
     if(pen.kind === "inconnue"){
       return '<div class="status-box">Pénalité de sortie non renseignée dans la base — vérifier la notice / DICI du fonds.</div>';
     }
+    if(pen.kind === "ferme"){
+      return '<div class="status-box danger"><div class="line1">🔒 Fonds fermé</div>' +
+        '<div class="line2">Sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds.</div></div>';
+    }
     if(pen.kind === "manuel"){
       return '<div class="status-box warn"><div class="line1">⚠️ À vérifier manuellement</div>' +
         '<span class="raw">' + escapeHtml(pen.raw) + '</span></div>';

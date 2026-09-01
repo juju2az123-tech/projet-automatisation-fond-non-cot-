@@ -1,6 +1,6 @@
 // Fichier généré automatiquement par scripts/build_data.py — ne pas éditer à la main.
 window.FUNDS_DATA = {
-  "generatedAt": "2026-08-17 16:13",
+  "generatedAt": "2026-09-01 12:12",
   "sourceFiles": [
     "Calendriers_de_fonds_Althos.xlsx",
     "Bibliotheque_de_fonds_Althos.xlsx"
@@ -15,9 +15,15 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
-        "tiers": []
+        "kind": "seuil",
+        "raw": "5 % de pénalité de rachat anticipé si les parts sont revendues dans les 18 premiers mois suivant la souscription",
+        "tiers": [
+          {
+            "minMonths": 0,
+            "maxMonths": 18,
+            "rate": 5.0
+          }
+        ]
       },
       "key": "LU2702162343",
       "hasCalendar": false,
@@ -39,9 +45,15 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
-        "tiers": []
+        "kind": "seuil",
+        "raw": "Pénalité de 2% sur la VL en cas de sortie avant 1 an de détention.",
+        "tiers": [
+          {
+            "minMonths": 0,
+            "maxMonths": 12,
+            "rate": 2.0
+          }
+        ]
       },
       "key": "LU3005168235",
       "hasCalendar": false,
@@ -379,8 +391,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0014007HA4",
@@ -493,8 +505,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0013533619",
@@ -517,8 +529,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "Fond fermé",
         "tiers": []
       },
       "key": "FR001400K4L0",
@@ -541,8 +553,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": "2026-12-01",
       "statutCouverture": "OK",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR001400AUA7",
@@ -595,8 +607,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "pas de pénalité de sortie",
         "tiers": []
       },
       "key": "FR0013144094",
@@ -619,8 +631,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "pas de pénalité de sortie",
         "tiers": []
       },
       "key": "FR0013182664",
@@ -673,12 +685,18 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
-        "tiers": []
+        "kind": "seuil",
+        "raw": "Pénalité de 2% sur la valeur liquidative en cas de sortie avant 1 an de détention",
+        "tiers": [
+          {
+            "minMonths": 0,
+            "maxMonths": 12,
+            "rate": 2.0
+          }
+        ]
       },
       "key": "LU2480032510",
-      "hasCalendar": false,
+      "hasCalendar": true,
       "devise": null,
       "sri": 3,
       "fraisCourants": null,
@@ -702,7 +720,7 @@ window.FUNDS_DATA = {
         "tiers": []
       },
       "key": "LU3192960857",
-      "hasCalendar": false,
+      "hasCalendar": true,
       "devise": null,
       "sri": 4,
       "fraisCourants": null,
@@ -721,12 +739,12 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "Pénalité de sortie : jusqu'à 5 % pendant les 2 premières années",
         "tiers": []
       },
       "key": "LU3036659277",
-      "hasCalendar": false,
+      "hasCalendar": true,
       "devise": null,
       "sri": 4,
       "fraisCourants": null,
@@ -775,9 +793,15 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
-        "tiers": []
+        "kind": "seuil",
+        "raw": "5 % de la VL des parts en cas de rachat dans les 18 mois suivant l'investissement",
+        "tiers": [
+          {
+            "minMonths": 0,
+            "maxMonths": 18,
+            "rate": 5.0
+          }
+        ]
       },
       "key": "LU2926063467",
       "hasCalendar": false,
@@ -799,8 +823,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "Pénalité de sortie : 5 % de la valeur liquidative des parts rachetées avant le 2ᵉ anniversaire de leur émission",
         "tiers": []
       },
       "key": "LU3212532884",
@@ -909,8 +933,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR00140089C0",
@@ -933,8 +957,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "LU0672299830",
@@ -1033,8 +1057,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR00140086L7",
@@ -1057,8 +1081,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0013224375",
@@ -1081,8 +1105,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "pas de pénalité de sortie",
         "tiers": []
       },
       "key": "FR001400BZG1",
@@ -1105,8 +1129,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "Aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR001400BCG0",
@@ -1129,8 +1153,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR001400K9O3",
@@ -1153,8 +1177,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR001400HHK8",
@@ -1182,7 +1206,7 @@ window.FUNDS_DATA = {
         "tiers": []
       },
       "key": "FR0013301546",
-      "hasCalendar": false,
+      "hasCalendar": true,
       "devise": null,
       "sri": 4,
       "fraisCourants": null,
@@ -1206,7 +1230,7 @@ window.FUNDS_DATA = {
         "tiers": []
       },
       "key": "FR0013301553",
-      "hasCalendar": false,
+      "hasCalendar": true,
       "devise": null,
       "sri": 3,
       "fraisCourants": null,
@@ -1230,7 +1254,7 @@ window.FUNDS_DATA = {
         "tiers": []
       },
       "key": "FR0013301561",
-      "hasCalendar": false,
+      "hasCalendar": true,
       "devise": null,
       "sri": 3,
       "fraisCourants": null,
@@ -1249,8 +1273,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "Fond fermé",
         "tiers": []
       },
       "key": "FR0013415056",
@@ -1273,8 +1297,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0013411451",
@@ -1297,8 +1321,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "aucune pénalité de sortie. / fond fermé",
         "tiers": []
       },
       "key": "FR0013144128",
@@ -1321,8 +1345,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR001400C5U8",
@@ -1345,8 +1369,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR001400C5V6",
@@ -1369,8 +1393,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "pas de pénalié de sortie",
         "tiers": []
       },
       "key": "FR001400AZ60",
@@ -1417,8 +1441,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0013236320",
@@ -1441,8 +1465,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0011347277",
@@ -1465,8 +1489,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0013372687",
@@ -1489,8 +1513,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR001400IEE6",
@@ -1513,8 +1537,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0014001LJ0",
@@ -1537,8 +1561,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "Fond fermé",
         "tiers": []
       },
       "key": "FR001400IL92",
@@ -1561,8 +1585,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR001400IL19",
@@ -1585,8 +1609,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "pas de pénalié de sortie",
         "tiers": []
       },
       "key": "FR0013473667",
@@ -1609,8 +1633,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "pas de pénalié de sortie",
         "tiers": []
       },
       "key": "FR001400NQN1",
@@ -1633,8 +1657,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie.",
         "tiers": []
       },
       "key": "FR0013504479",
@@ -1711,8 +1735,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR0013186772",
@@ -1735,8 +1759,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR0010923359",
@@ -1759,8 +1783,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR0013393188",
@@ -1855,8 +1879,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR0013393295",
@@ -1895,8 +1919,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR0013186749",
@@ -1919,8 +1943,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR0010923383",
@@ -1943,8 +1967,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR0013535408",
@@ -2027,8 +2051,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "LU0912261624",
@@ -2051,8 +2075,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "IE000F31HWX5",
@@ -2075,8 +2099,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "LU0912261970",
@@ -2099,8 +2123,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "LU0912262275",
@@ -2123,8 +2147,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "LU1112771503",
@@ -2147,8 +2171,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "LU1112771255",
@@ -2171,8 +2195,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "LU1734046979",
@@ -2200,7 +2224,7 @@ window.FUNDS_DATA = {
         "tiers": []
       },
       "key": "LU2862929846",
-      "hasCalendar": false,
+      "hasCalendar": true,
       "devise": null,
       "sri": 4,
       "fraisCourants": null,
@@ -2321,8 +2345,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "IE00BK5BHW86",
@@ -2345,9 +2369,15 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
-        "tiers": []
+        "kind": "seuil",
+        "raw": "Pénalité de 2% de frais si retrait avant 1 an",
+        "tiers": [
+          {
+            "minMonths": 0,
+            "maxMonths": 12,
+            "rate": 2.0
+          }
+        ]
       },
       "key": "FR001400ZI88",
       "hasCalendar": false,
@@ -2369,9 +2399,15 @@ window.FUNDS_DATA = {
       "couvertureJusquau": "2026-12-15",
       "statutCouverture": "OK",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
-        "tiers": []
+        "kind": "seuil",
+        "raw": "Frais de sortie : 2 % pendant les 12 premiers mois",
+        "tiers": [
+          {
+            "minMonths": 0,
+            "maxMonths": 12,
+            "rate": 2.0
+          }
+        ]
       },
       "key": "LU2860459879",
       "hasCalendar": true,
@@ -2393,8 +2429,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR001400LUW8",
@@ -2438,7 +2474,7 @@ window.FUNDS_DATA = {
         "tiers": []
       },
       "key": "LU2496022059",
-      "hasCalendar": false,
+      "hasCalendar": true,
       "devise": null,
       "sri": 4,
       "fraisCourants": null,
@@ -2457,8 +2493,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "pas de pénalité de sortie.",
         "tiers": []
       },
       "key": "FR0013202108",
@@ -2481,8 +2517,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR0013324662",
@@ -2505,8 +2541,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR0013324670",
@@ -2529,8 +2565,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR0013265683",
@@ -2553,8 +2589,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie",
         "tiers": []
       },
       "key": "FR001400LW94",
@@ -2577,8 +2613,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR001400C5W4",
@@ -2601,9 +2637,15 @@ window.FUNDS_DATA = {
       "couvertureJusquau": "2026-12-21",
       "statutCouverture": "OK",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
-        "tiers": []
+        "kind": "seuil",
+        "raw": "2 % si le rachat intervient dans les 12 premiers mois suivant la souscription",
+        "tiers": [
+          {
+            "minMonths": 0,
+            "maxMonths": 12,
+            "rate": 2.0
+          }
+        ]
       },
       "key": "LU3047997575",
       "hasCalendar": true,
@@ -2625,9 +2667,15 @@ window.FUNDS_DATA = {
       "couvertureJusquau": "2026-12-21",
       "statutCouverture": "OK",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
-        "tiers": []
+        "kind": "seuil",
+        "raw": "Pénalité de sortie de 2 % pendant les 12 premiers mois suivant la souscription",
+        "tiers": [
+          {
+            "minMonths": 0,
+            "maxMonths": 12,
+            "rate": 2.0
+          }
+        ]
       },
       "key": "LU3047997658",
       "hasCalendar": true,
@@ -2829,8 +2877,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": "2026-12-28",
       "statutCouverture": "OK",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "pas de pénalité de sortie",
         "tiers": []
       },
       "key": "LU2710930046",
@@ -2853,8 +2901,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0014009FU2",
@@ -2877,8 +2925,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0014009FV0",
@@ -2901,8 +2949,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "fond fermé",
         "tiers": []
       },
       "key": "FR0014005Z14",
@@ -2925,8 +2973,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "Fond fermé",
         "tiers": []
       },
       "key": "FR0014005Z22",
@@ -3303,8 +3351,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "pas de pénalité de sortie.",
         "tiers": []
       },
       "key": "FR001400MDE0",
@@ -3327,8 +3375,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "aucun penalité de sortie",
         "tiers": []
       },
       "key": "FR00140001C5",
@@ -3351,8 +3399,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "manuel",
+        "raw": "Pénalité de sortie : jusqu'à 5 % dans certains cas, à la discrétion des Administrateurs",
         "tiers": []
       },
       "key": "LU2658265710",
@@ -3375,8 +3423,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "aucune",
+        "raw": "aucune pénalité de sortie.",
         "tiers": []
       },
       "key": "LU2098888824",
@@ -3453,9 +3501,15 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
-        "tiers": []
+        "kind": "seuil",
+        "raw": "2 % si le rachat intervient dans les 12 premiers mois suivant l'investissement.",
+        "tiers": [
+          {
+            "minMonths": 0,
+            "maxMonths": 12,
+            "rate": 2.0
+          }
+        ]
       },
       "key": "LU2528864353",
       "hasCalendar": false,
@@ -3488,7 +3542,7 @@ window.FUNDS_DATA = {
         ]
       },
       "key": "LU3084311938",
-      "hasCalendar": false,
+      "hasCalendar": true,
       "devise": null,
       "sri": 6,
       "fraisCourants": null,
@@ -3555,9 +3609,15 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
-        "tiers": []
+        "kind": "seuil",
+        "raw": "Pénalités de sortie\nEn cas de retrait, le remboursement est diminué de frais de rachat anticipé de 20 % du prix de rachat.\nLe document précise que ces frais sont de 20 % du prix de rachat, quelle que soit la date de retrait (y compris en cas de prorogation de la durée de vie de la société).\nDurée de vie du fonds\nDurée de vie statutaire : 6 ans à compter de l'immatriculation de la société.\nCette durée peut être prorogée par les associés.\nLe document précise également que la société peut être prolongée de deux périodes successives d'un an chacune",
+        "tiers": [
+          {
+            "minMonths": 0,
+            "maxMonths": 72,
+            "rate": 20.0
+          }
+        ]
       },
       "key": "FR00140047N5",
       "hasCalendar": false,
@@ -3579,8 +3639,8 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "inconnue",
-        "raw": null,
+        "kind": "ferme",
+        "raw": "pas de pénalité de sortie / fond fermé",
         "tiers": []
       },
       "key": "FR0013324993",
@@ -9427,6 +9487,1283 @@ window.FUNDS_DATA = {
           "publicationVL": null,
           "reglementCash": "2027-01-07",
           "statut": "À vérifier"
+        }
+      ]
+    },
+    "LU3036659277": {
+      "Souscription": [
+        {
+          "periode": "Septembre 2025",
+          "cutoff": "2025-09-24",
+          "valorisation": "2025-09-30",
+          "execution": "2025-10-01",
+          "publicationVL": "2025-10-29",
+          "reglementCash": "2025-09-25",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Octobre 2025",
+          "cutoff": "2025-10-27",
+          "valorisation": "2025-10-31",
+          "execution": "2025-11-03",
+          "publicationVL": "2025-12-02",
+          "reglementCash": "2025-10-28",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Novembre 2025",
+          "cutoff": "2025-11-21",
+          "valorisation": "2025-11-30",
+          "execution": "2025-12-01",
+          "publicationVL": "2025-12-30",
+          "reglementCash": "2025-11-24",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Décembre 2025",
+          "cutoff": "2025-12-23",
+          "valorisation": "2025-12-31",
+          "execution": "2026-01-02",
+          "publicationVL": "2026-01-30",
+          "reglementCash": "2025-12-24",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Janvier 2026",
+          "cutoff": "2026-01-26",
+          "valorisation": "2026-01-31",
+          "execution": "2026-02-02",
+          "publicationVL": "2026-03-02",
+          "reglementCash": "2026-01-27",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Février 2026",
+          "cutoff": "2026-02-23",
+          "valorisation": "2026-02-28",
+          "execution": "2026-03-02",
+          "publicationVL": "2026-03-27",
+          "reglementCash": "2026-02-24",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-03-25",
+          "valorisation": "2026-03-31",
+          "execution": "2026-04-01",
+          "publicationVL": "2026-04-30",
+          "reglementCash": "2026-03-26",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Avril 2026",
+          "cutoff": "2026-04-24",
+          "valorisation": "2026-04-30",
+          "execution": "2026-05-05",
+          "publicationVL": "2026-06-03",
+          "reglementCash": "2026-04-27",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Mai 2026",
+          "cutoff": "2026-05-22",
+          "valorisation": "2026-05-31",
+          "execution": "2026-06-01",
+          "publicationVL": "2026-06-30",
+          "reglementCash": "2026-05-26",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-06-24",
+          "valorisation": "2026-06-30",
+          "execution": "2026-07-01",
+          "publicationVL": "2026-07-29",
+          "reglementCash": "2026-06-25",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Juillet 2026",
+          "cutoff": "2026-07-27",
+          "valorisation": "2026-07-31",
+          "execution": "2026-08-03",
+          "publicationVL": "2026-08-28",
+          "reglementCash": "2026-07-28",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Août 2026",
+          "cutoff": "2026-08-24",
+          "valorisation": "2026-08-31",
+          "execution": "2026-09-01",
+          "publicationVL": "2026-09-29",
+          "reglementCash": "2026-08-25",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-09-24",
+          "valorisation": "2026-09-30",
+          "execution": "2026-10-01",
+          "publicationVL": "2026-10-29",
+          "reglementCash": "2026-09-25",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Octobre 2026",
+          "cutoff": "2026-10-26",
+          "valorisation": "2026-10-31",
+          "execution": "2026-11-02",
+          "publicationVL": "2026-12-01",
+          "reglementCash": "2026-10-27",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Novembre 2026",
+          "cutoff": "2026-11-23",
+          "valorisation": "2026-11-30",
+          "execution": "2026-12-01",
+          "publicationVL": "2026-12-30",
+          "reglementCash": "2026-11-24",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Décembre 2026",
+          "cutoff": "2026-12-23",
+          "valorisation": "2026-12-31",
+          "execution": "2027-01-04",
+          "publicationVL": "2027-02-01",
+          "reglementCash": "2026-12-24",
+          "statut": "Validé"
+        }
+      ],
+      "Rachat": [
+        {
+          "periode": "Décembre 2025",
+          "cutoff": "2025-12-15",
+          "valorisation": "2025-12-31",
+          "execution": "2025-12-31",
+          "publicationVL": "2026-01-30",
+          "reglementCash": "2026-02-13",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-03-17",
+          "valorisation": "2026-03-31",
+          "execution": "2026-03-31",
+          "publicationVL": "2026-04-30",
+          "reglementCash": "2026-05-19",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-06-12",
+          "valorisation": "2026-06-30",
+          "execution": "2026-06-30",
+          "publicationVL": "2026-07-29",
+          "reglementCash": "2026-08-12",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-09-16",
+          "valorisation": "2026-09-30",
+          "execution": "2026-09-30",
+          "publicationVL": "2026-10-29",
+          "reglementCash": "2026-11-13",
+          "statut": "Validé"
+        },
+        {
+          "periode": "Décembre 2026",
+          "cutoff": "2026-12-15",
+          "valorisation": "2026-12-31",
+          "execution": "2026-12-31",
+          "publicationVL": "2027-02-01",
+          "reglementCash": "2027-02-16",
+          "statut": "Validé"
+        }
+      ]
+    },
+    "LU2496022059": {
+      "Rachat": [
+        {
+          "periode": "Décembre 2025",
+          "cutoff": "2025-12-29",
+          "valorisation": "2025-12-31",
+          "execution": "2025-12-31",
+          "publicationVL": "2026-01-22",
+          "reglementCash": "2026-01-27",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Janvier 2026",
+          "cutoff": "2026-01-28",
+          "valorisation": "2026-01-30",
+          "execution": "2026-01-30",
+          "publicationVL": "2026-02-20",
+          "reglementCash": "2026-02-25",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Février 2026",
+          "cutoff": "2026-02-25",
+          "valorisation": "2026-02-27",
+          "execution": "2026-02-27",
+          "publicationVL": "2026-03-20",
+          "reglementCash": "2026-03-25",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-03-27",
+          "valorisation": "2026-03-31",
+          "execution": "2026-03-31",
+          "publicationVL": "2026-04-23",
+          "reglementCash": "2026-04-28",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Avril 2026",
+          "cutoff": "2026-04-28",
+          "valorisation": "2026-04-30",
+          "execution": "2026-04-30",
+          "publicationVL": "2026-05-26",
+          "reglementCash": "2026-05-29",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mai 2026",
+          "cutoff": "2026-05-27",
+          "valorisation": "2026-05-29",
+          "execution": "2026-05-29",
+          "publicationVL": "2026-06-19",
+          "reglementCash": "2026-06-25",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-06-26",
+          "valorisation": "2026-06-30",
+          "execution": "2026-06-30",
+          "publicationVL": "2026-07-21",
+          "reglementCash": "2026-07-24",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juillet 2026",
+          "cutoff": "2026-07-29",
+          "valorisation": "2026-07-31",
+          "execution": "2026-07-31",
+          "publicationVL": "2026-08-21",
+          "reglementCash": "2026-08-26",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Août 2026",
+          "cutoff": "2026-08-27",
+          "valorisation": "2026-08-31",
+          "execution": "2026-08-31",
+          "publicationVL": "2026-09-21",
+          "reglementCash": "2026-09-24",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-09-28",
+          "valorisation": "2026-09-30",
+          "execution": "2026-09-30",
+          "publicationVL": "2026-10-21",
+          "reglementCash": "2026-10-26",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Octobre 2026",
+          "cutoff": "2026-10-28",
+          "valorisation": "2026-10-30",
+          "execution": "2026-10-30",
+          "publicationVL": "2026-11-20",
+          "reglementCash": "2026-11-25",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Novembre 2026",
+          "cutoff": "2026-11-26",
+          "valorisation": "2026-11-30",
+          "execution": "2026-11-30",
+          "publicationVL": "2026-12-21",
+          "reglementCash": "2026-12-28",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Décembre 2026",
+          "cutoff": "2026-12-29",
+          "valorisation": "2026-12-31",
+          "execution": "2026-12-31",
+          "publicationVL": "2027-01-22",
+          "reglementCash": "2027-01-27",
+          "statut": "À vérifier"
+        }
+      ]
+    },
+    "FR0013301561": {
+      "Rachat": [
+        {
+          "periode": "Décembre 2025",
+          "cutoff": "2025-12-31",
+          "valorisation": "2026-01-31",
+          "execution": "2026-01-31",
+          "publicationVL": null,
+          "reglementCash": "2026-02-28",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Janvier 2026",
+          "cutoff": "2026-01-31",
+          "valorisation": "2026-02-28",
+          "execution": "2026-02-28",
+          "publicationVL": null,
+          "reglementCash": "2026-03-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Février 2026",
+          "cutoff": "2026-02-28",
+          "valorisation": "2026-03-31",
+          "execution": "2026-03-31",
+          "publicationVL": null,
+          "reglementCash": "2026-04-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-03-31",
+          "valorisation": "2026-04-30",
+          "execution": "2026-04-30",
+          "publicationVL": null,
+          "reglementCash": "2026-05-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Avril 2026",
+          "cutoff": "2026-04-30",
+          "valorisation": "2026-05-31",
+          "execution": "2026-05-31",
+          "publicationVL": null,
+          "reglementCash": "2026-06-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mai 2026",
+          "cutoff": "2026-05-31",
+          "valorisation": "2026-06-30",
+          "execution": "2026-06-30",
+          "publicationVL": null,
+          "reglementCash": "2026-07-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-06-30",
+          "valorisation": "2026-07-31",
+          "execution": "2026-07-31",
+          "publicationVL": null,
+          "reglementCash": "2026-08-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juillet 2026",
+          "cutoff": "2026-07-31",
+          "valorisation": "2026-08-31",
+          "execution": "2026-08-31",
+          "publicationVL": null,
+          "reglementCash": "2026-09-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Août 2026",
+          "cutoff": "2026-08-31",
+          "valorisation": "2026-09-30",
+          "execution": "2026-09-30",
+          "publicationVL": null,
+          "reglementCash": "2026-10-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-09-30",
+          "valorisation": "2026-10-31",
+          "execution": "2026-10-31",
+          "publicationVL": null,
+          "reglementCash": "2026-11-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Octobre 2026",
+          "cutoff": "2026-10-31",
+          "valorisation": "2026-11-30",
+          "execution": "2026-11-30",
+          "publicationVL": null,
+          "reglementCash": "2026-12-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Novembre 2026",
+          "cutoff": "2026-11-30",
+          "valorisation": "2026-12-31",
+          "execution": "2026-12-31",
+          "publicationVL": null,
+          "reglementCash": "2027-01-31",
+          "statut": "À vérifier"
+        }
+      ]
+    },
+    "FR0013301553": {
+      "Rachat": [
+        {
+          "periode": "Décembre 2025",
+          "cutoff": "2025-12-31",
+          "valorisation": "2026-01-31",
+          "execution": "2026-01-31",
+          "publicationVL": null,
+          "reglementCash": "2026-02-28",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Janvier 2026",
+          "cutoff": "2026-01-31",
+          "valorisation": "2026-02-28",
+          "execution": "2026-02-28",
+          "publicationVL": null,
+          "reglementCash": "2026-03-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Février 2026",
+          "cutoff": "2026-02-28",
+          "valorisation": "2026-03-31",
+          "execution": "2026-03-31",
+          "publicationVL": null,
+          "reglementCash": "2026-04-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-03-31",
+          "valorisation": "2026-04-30",
+          "execution": "2026-04-30",
+          "publicationVL": null,
+          "reglementCash": "2026-05-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Avril 2026",
+          "cutoff": "2026-04-30",
+          "valorisation": "2026-05-31",
+          "execution": "2026-05-31",
+          "publicationVL": null,
+          "reglementCash": "2026-06-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mai 2026",
+          "cutoff": "2026-05-31",
+          "valorisation": "2026-06-30",
+          "execution": "2026-06-30",
+          "publicationVL": null,
+          "reglementCash": "2026-07-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-06-30",
+          "valorisation": "2026-07-31",
+          "execution": "2026-07-31",
+          "publicationVL": null,
+          "reglementCash": "2026-08-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juillet 2026",
+          "cutoff": "2026-07-31",
+          "valorisation": "2026-08-31",
+          "execution": "2026-08-31",
+          "publicationVL": null,
+          "reglementCash": "2026-09-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Août 2026",
+          "cutoff": "2026-08-31",
+          "valorisation": "2026-09-30",
+          "execution": "2026-09-30",
+          "publicationVL": null,
+          "reglementCash": "2026-10-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-09-30",
+          "valorisation": "2026-10-31",
+          "execution": "2026-10-31",
+          "publicationVL": null,
+          "reglementCash": "2026-11-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Octobre 2026",
+          "cutoff": "2026-10-31",
+          "valorisation": "2026-11-30",
+          "execution": "2026-11-30",
+          "publicationVL": null,
+          "reglementCash": "2026-12-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Novembre 2026",
+          "cutoff": "2026-11-30",
+          "valorisation": "2026-12-31",
+          "execution": "2026-12-31",
+          "publicationVL": null,
+          "reglementCash": "2027-01-31",
+          "statut": "À vérifier"
+        }
+      ]
+    },
+    "FR0013301546": {
+      "Rachat": [
+        {
+          "periode": "Décembre 2025",
+          "cutoff": "2025-12-31",
+          "valorisation": "2026-01-31",
+          "execution": "2026-01-31",
+          "publicationVL": null,
+          "reglementCash": "2026-02-28",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Janvier 2026",
+          "cutoff": "2026-01-31",
+          "valorisation": "2026-02-28",
+          "execution": "2026-02-28",
+          "publicationVL": null,
+          "reglementCash": "2026-03-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Février 2026",
+          "cutoff": "2026-02-28",
+          "valorisation": "2026-03-31",
+          "execution": "2026-03-31",
+          "publicationVL": null,
+          "reglementCash": "2026-04-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-03-31",
+          "valorisation": "2026-04-30",
+          "execution": "2026-04-30",
+          "publicationVL": null,
+          "reglementCash": "2026-05-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Avril 2026",
+          "cutoff": "2026-04-30",
+          "valorisation": "2026-05-31",
+          "execution": "2026-05-31",
+          "publicationVL": null,
+          "reglementCash": "2026-06-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mai 2026",
+          "cutoff": "2026-05-31",
+          "valorisation": "2026-06-30",
+          "execution": "2026-06-30",
+          "publicationVL": null,
+          "reglementCash": "2026-07-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-06-30",
+          "valorisation": "2026-07-31",
+          "execution": "2026-07-31",
+          "publicationVL": null,
+          "reglementCash": "2026-08-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juillet 2026",
+          "cutoff": "2026-07-31",
+          "valorisation": "2026-08-31",
+          "execution": "2026-08-31",
+          "publicationVL": null,
+          "reglementCash": "2026-09-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Août 2026",
+          "cutoff": "2026-08-31",
+          "valorisation": "2026-09-30",
+          "execution": "2026-09-30",
+          "publicationVL": null,
+          "reglementCash": "2026-10-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-09-30",
+          "valorisation": "2026-10-31",
+          "execution": "2026-10-31",
+          "publicationVL": null,
+          "reglementCash": "2026-11-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Octobre 2026",
+          "cutoff": "2026-10-31",
+          "valorisation": "2026-11-30",
+          "execution": "2026-11-30",
+          "publicationVL": null,
+          "reglementCash": "2026-12-31",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Novembre 2026",
+          "cutoff": "2026-11-30",
+          "valorisation": "2026-12-31",
+          "execution": "2026-12-31",
+          "publicationVL": null,
+          "reglementCash": "2027-01-31",
+          "statut": "À vérifier"
+        }
+      ]
+    },
+    "LU2862929846": {
+      "Souscription": [
+        {
+          "periode": "T1 2025",
+          "cutoff": "2025-03-18",
+          "valorisation": "2025-04-01",
+          "execution": "2025-04-01",
+          "publicationVL": "2025-05-19",
+          "reglementCash": "2025-04-03",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T2 2025",
+          "cutoff": "2025-06-16",
+          "valorisation": "2025-07-01",
+          "execution": "2025-07-01",
+          "publicationVL": "2025-08-11",
+          "reglementCash": "2025-07-03",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T3 2025",
+          "cutoff": "2025-09-17",
+          "valorisation": "2025-10-01",
+          "execution": "2025-10-01",
+          "publicationVL": "2025-11-11",
+          "reglementCash": "2025-10-03",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T4 2025",
+          "cutoff": "2025-12-16",
+          "valorisation": "2026-01-02",
+          "execution": "2026-01-02",
+          "publicationVL": "2026-03-12",
+          "reglementCash": "2026-01-06",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T1 2026",
+          "cutoff": "2026-03-18",
+          "valorisation": "2026-04-01",
+          "execution": "2026-04-01",
+          "publicationVL": "2026-05-19",
+          "reglementCash": "2026-04-07",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T2 2026",
+          "cutoff": "2026-06-16",
+          "valorisation": "2026-07-01",
+          "execution": "2026-07-01",
+          "publicationVL": "2026-08-11",
+          "reglementCash": "2026-07-03",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T3 2026",
+          "cutoff": "2026-09-17",
+          "valorisation": "2026-10-01",
+          "execution": "2026-10-01",
+          "publicationVL": "2026-11-11",
+          "reglementCash": "2026-10-05",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T4 2026",
+          "cutoff": "2026-12-16",
+          "valorisation": "2027-01-04",
+          "execution": "2027-01-04",
+          "publicationVL": "2027-03-12",
+          "reglementCash": "2027-01-06",
+          "statut": "À vérifier"
+        }
+      ],
+      "Rachat": [
+        {
+          "periode": "T1 2025",
+          "cutoff": "2025-03-04",
+          "valorisation": "2025-04-01",
+          "execution": "2025-04-01",
+          "publicationVL": "2025-05-19",
+          "reglementCash": "2025-05-22",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T2 2025",
+          "cutoff": "2025-05-30",
+          "valorisation": "2025-07-01",
+          "execution": "2025-07-01",
+          "publicationVL": "2025-08-11",
+          "reglementCash": "2025-08-14",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T3 2025",
+          "cutoff": "2025-09-03",
+          "valorisation": "2025-10-01",
+          "execution": "2025-10-01",
+          "publicationVL": "2025-11-11",
+          "reglementCash": "2025-11-14",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T4 2025",
+          "cutoff": "2025-12-02",
+          "valorisation": "2026-01-02",
+          "execution": "2026-01-02",
+          "publicationVL": "2026-03-12",
+          "reglementCash": "2026-03-17",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T1 2026",
+          "cutoff": "2026-03-04",
+          "valorisation": "2026-04-01",
+          "execution": "2026-04-01",
+          "publicationVL": "2026-05-19",
+          "reglementCash": "2026-05-26",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T2 2026",
+          "cutoff": "2026-06-02",
+          "valorisation": "2026-07-01",
+          "execution": "2026-07-01",
+          "publicationVL": "2026-08-11",
+          "reglementCash": "2026-08-17",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T3 2026",
+          "cutoff": "2026-09-03",
+          "valorisation": "2026-10-01",
+          "execution": "2026-10-01",
+          "publicationVL": "2026-11-11",
+          "reglementCash": "2026-11-17",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "T4 2026",
+          "cutoff": "2026-12-02",
+          "valorisation": "2027-01-04",
+          "execution": "2027-01-04",
+          "publicationVL": "2027-03-12",
+          "reglementCash": "2027-03-18",
+          "statut": "À vérifier"
+        }
+      ]
+    },
+    "LU2480032510": {
+      "Souscription": [
+        {
+          "periode": "Janvier 2026",
+          "cutoff": "2025-12-24",
+          "valorisation": "2025-12-31",
+          "execution": "2026-01-01",
+          "publicationVL": "2026-01-30",
+          "reglementCash": "2025-12-24",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Février 2026",
+          "cutoff": "2026-01-27",
+          "valorisation": "2026-01-31",
+          "execution": "2026-02-01",
+          "publicationVL": "2026-02-27",
+          "reglementCash": "2026-01-27",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-02-24",
+          "valorisation": "2026-02-28",
+          "execution": "2026-03-01",
+          "publicationVL": "2026-03-27",
+          "reglementCash": "2026-02-24",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Avril 2026",
+          "cutoff": "2026-03-26",
+          "valorisation": "2026-03-31",
+          "execution": "2026-04-01",
+          "publicationVL": "2026-04-30",
+          "reglementCash": "2026-03-26",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mai 2026",
+          "cutoff": "2026-04-27",
+          "valorisation": "2026-04-30",
+          "execution": "2026-05-01",
+          "publicationVL": "2026-05-29",
+          "reglementCash": "2026-04-27",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-05-26",
+          "valorisation": "2026-05-31",
+          "execution": "2026-06-01",
+          "publicationVL": "2026-06-30",
+          "reglementCash": "2026-05-26",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juillet 2026",
+          "cutoff": "2026-06-25",
+          "valorisation": "2026-06-30",
+          "execution": "2026-07-01",
+          "publicationVL": "2026-07-30",
+          "reglementCash": "2026-06-25",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Août 2026",
+          "cutoff": "2026-07-28",
+          "valorisation": "2026-07-31",
+          "execution": "2026-08-01",
+          "publicationVL": "2026-08-28",
+          "reglementCash": "2026-07-28",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-08-25",
+          "valorisation": "2026-08-31",
+          "execution": "2026-09-01",
+          "publicationVL": "2026-09-29",
+          "reglementCash": "2026-08-25",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Octobre 2026",
+          "cutoff": "2026-09-25",
+          "valorisation": "2026-09-30",
+          "execution": "2026-10-01",
+          "publicationVL": "2026-10-29",
+          "reglementCash": "2026-09-25",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Novembre 2026",
+          "cutoff": "2026-10-27",
+          "valorisation": "2026-10-31",
+          "execution": "2026-11-01",
+          "publicationVL": "2026-11-28",
+          "reglementCash": "2026-10-27",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Décembre 2026",
+          "cutoff": "2026-11-24",
+          "valorisation": "2026-11-30",
+          "execution": "2026-12-01",
+          "publicationVL": "2026-12-30",
+          "reglementCash": "2026-11-24",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Janvier 2027",
+          "cutoff": "2026-12-24",
+          "valorisation": "2026-12-31",
+          "execution": "2027-01-01",
+          "publicationVL": "2027-01-29",
+          "reglementCash": "2026-12-24",
+          "statut": "À vérifier"
+        }
+      ],
+      "Rachat": [
+        {
+          "periode": "Janvier 2026",
+          "cutoff": "2026-01-02",
+          "valorisation": "2026-01-31",
+          "execution": "2026-01-31",
+          "publicationVL": "2026-02-27",
+          "reglementCash": "2026-04-01",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Février 2026",
+          "cutoff": "2026-02-02",
+          "valorisation": "2026-02-28",
+          "execution": "2026-02-28",
+          "publicationVL": "2026-03-27",
+          "reglementCash": "2026-04-29",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-03-02",
+          "valorisation": "2026-03-31",
+          "execution": "2026-03-31",
+          "publicationVL": "2026-04-30",
+          "reglementCash": "2026-05-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Avril 2026",
+          "cutoff": "2026-04-01",
+          "valorisation": "2026-04-30",
+          "execution": "2026-04-30",
+          "publicationVL": "2026-05-29",
+          "reglementCash": "2026-06-29",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Mai 2026",
+          "cutoff": "2026-05-05",
+          "valorisation": "2026-05-31",
+          "execution": "2026-05-31",
+          "publicationVL": "2026-06-30",
+          "reglementCash": "2026-07-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-06-01",
+          "valorisation": "2026-06-30",
+          "execution": "2026-06-30",
+          "publicationVL": "2026-07-30",
+          "reglementCash": "2026-08-29",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Juillet 2026",
+          "cutoff": "2026-07-01",
+          "valorisation": "2026-07-31",
+          "execution": "2026-07-31",
+          "publicationVL": "2026-08-28",
+          "reglementCash": "2026-09-29",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Août 2026",
+          "cutoff": "2026-08-03",
+          "valorisation": "2026-08-31",
+          "execution": "2026-08-31",
+          "publicationVL": "2026-09-29",
+          "reglementCash": "2026-10-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-09-01",
+          "valorisation": "2026-09-30",
+          "execution": "2026-09-30",
+          "publicationVL": "2026-10-28",
+          "reglementCash": "2026-11-29",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Octobre 2026",
+          "cutoff": "2026-10-01",
+          "valorisation": "2026-10-31",
+          "execution": "2026-10-31",
+          "publicationVL": "2026-11-30",
+          "reglementCash": "2026-12-30",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Novembre 2026",
+          "cutoff": "2026-11-02",
+          "valorisation": "2026-11-30",
+          "execution": "2026-11-30",
+          "publicationVL": "2026-12-30",
+          "reglementCash": "2027-01-29",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Décembre 2026",
+          "cutoff": "2026-12-01",
+          "valorisation": "2026-12-31",
+          "execution": "2026-12-31",
+          "publicationVL": "2027-01-29",
+          "reglementCash": "2027-03-01",
+          "statut": "À vérifier"
+        },
+        {
+          "periode": "Janvier 2027",
+          "cutoff": "2027-01-04",
+          "valorisation": "2027-01-31",
+          "execution": "2027-01-31",
+          "publicationVL": "2027-02-26",
+          "reglementCash": "2027-04-01",
+          "statut": "À vérifier"
+        }
+      ]
+    },
+    "LU3084311938": {
+      "Rachat": [
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-02-25",
+          "valorisation": "2026-03-25",
+          "execution": "2026-03-25",
+          "publicationVL": null,
+          "reglementCash": "2026-04-01",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-05-27",
+          "valorisation": "2026-06-24",
+          "execution": "2026-06-24",
+          "publicationVL": null,
+          "reglementCash": "2026-07-01",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-09-02",
+          "valorisation": "2026-09-30",
+          "execution": "2026-09-30",
+          "publicationVL": null,
+          "reglementCash": "2026-10-07",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Décembre 2026",
+          "cutoff": "2026-12-02",
+          "valorisation": "2026-12-30",
+          "execution": "2026-12-30",
+          "publicationVL": null,
+          "reglementCash": "2027-01-07",
+          "statut": "Calendriers par fonds"
+        }
+      ]
+    },
+    "LU3192960857": {
+      "Souscription": [
+        {
+          "periode": "Septembre 2025",
+          "cutoff": "2025-09-24",
+          "valorisation": "2025-09-30",
+          "execution": "2025-10-01",
+          "publicationVL": "2025-10-29",
+          "reglementCash": "2025-09-25",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Octobre 2025",
+          "cutoff": "2025-10-27",
+          "valorisation": "2025-10-31",
+          "execution": "2025-11-03",
+          "publicationVL": "2025-12-02",
+          "reglementCash": "2025-10-28",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Novembre 2025",
+          "cutoff": "2025-11-21",
+          "valorisation": "2025-11-30",
+          "execution": "2025-12-01",
+          "publicationVL": "2025-12-30",
+          "reglementCash": "2025-11-24",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Décembre 2025",
+          "cutoff": "2025-12-23",
+          "valorisation": "2025-12-31",
+          "execution": "2026-01-02",
+          "publicationVL": "2026-01-30",
+          "reglementCash": "2025-12-24",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Janvier 2026",
+          "cutoff": "2026-01-26",
+          "valorisation": "2026-01-31",
+          "execution": "2026-02-02",
+          "publicationVL": "2026-03-02",
+          "reglementCash": "2026-01-27",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Février 2026",
+          "cutoff": "2026-02-23",
+          "valorisation": "2026-02-28",
+          "execution": "2026-03-02",
+          "publicationVL": "2026-03-27",
+          "reglementCash": "2026-02-24",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-03-25",
+          "valorisation": "2026-03-31",
+          "execution": "2026-04-01",
+          "publicationVL": "2026-04-30",
+          "reglementCash": "2026-03-26",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Avril 2026",
+          "cutoff": "2026-04-24",
+          "valorisation": "2026-04-30",
+          "execution": "2026-05-05",
+          "publicationVL": "2026-06-03",
+          "reglementCash": "2026-04-27",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Mai 2026",
+          "cutoff": "2026-05-22",
+          "valorisation": "2026-05-31",
+          "execution": "2026-06-01",
+          "publicationVL": "2026-06-30",
+          "reglementCash": "2026-05-26",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-06-24",
+          "valorisation": "2026-06-30",
+          "execution": "2026-07-01",
+          "publicationVL": "2026-07-29",
+          "reglementCash": "2026-06-25",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Juillet 2026",
+          "cutoff": "2026-07-27",
+          "valorisation": "2026-07-31",
+          "execution": "2026-08-03",
+          "publicationVL": "2026-08-28",
+          "reglementCash": "2026-07-28",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Août 2026",
+          "cutoff": "2026-08-24",
+          "valorisation": "2026-08-31",
+          "execution": "2026-09-01",
+          "publicationVL": "2026-09-29",
+          "reglementCash": "2026-08-25",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-09-24",
+          "valorisation": "2026-09-30",
+          "execution": "2026-10-01",
+          "publicationVL": "2026-10-29",
+          "reglementCash": "2026-09-25",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Octobre 2026",
+          "cutoff": "2026-10-26",
+          "valorisation": "2026-10-31",
+          "execution": "2026-11-02",
+          "publicationVL": "2026-12-01",
+          "reglementCash": "2026-10-27",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Novembre 2026",
+          "cutoff": "2026-11-23",
+          "valorisation": "2026-11-30",
+          "execution": "2026-12-01",
+          "publicationVL": "2026-12-30",
+          "reglementCash": "2026-11-24",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Décembre 2026",
+          "cutoff": "2026-12-23",
+          "valorisation": "2026-12-31",
+          "execution": "2027-01-04",
+          "publicationVL": "2027-02-01",
+          "reglementCash": "2026-12-24",
+          "statut": "Calendriers par fonds"
+        }
+      ],
+      "Rachat": [
+        {
+          "periode": "Décembre 2025",
+          "cutoff": "2025-12-15",
+          "valorisation": "2025-12-31",
+          "execution": "2025-12-31",
+          "publicationVL": "2026-01-30",
+          "reglementCash": "2026-02-13",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Mars 2026",
+          "cutoff": "2026-03-17",
+          "valorisation": "2026-03-31",
+          "execution": "2026-03-31",
+          "publicationVL": "2026-04-30",
+          "reglementCash": "2026-05-19",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Juin 2026",
+          "cutoff": "2026-06-12",
+          "valorisation": "2026-06-30",
+          "execution": "2026-06-30",
+          "publicationVL": "2026-07-29",
+          "reglementCash": "2026-08-12",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Septembre 2026",
+          "cutoff": "2026-09-16",
+          "valorisation": "2026-09-30",
+          "execution": "2026-09-30",
+          "publicationVL": "2026-10-29",
+          "reglementCash": "2026-11-13",
+          "statut": "Calendriers par fonds"
+        },
+        {
+          "periode": "Décembre 2026",
+          "cutoff": "2026-12-15",
+          "valorisation": "2026-12-31",
+          "execution": "2026-12-31",
+          "publicationVL": "2027-02-01",
+          "reglementCash": "2027-02-16",
+          "statut": "Calendriers par fonds"
         }
       ]
     },

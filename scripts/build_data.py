@@ -49,6 +49,12 @@ def parse_penalite(raw):
     text = str(raw).strip()
     low = text.lower()
 
+    # Fonds fermé : aucune sortie possible (hors cas exceptionnels prévus au règlement), quelle
+    # que soit la pénalité éventuellement mentionnée par ailleurs dans le même texte — priorité
+    # sur toute autre détection, car c'est l'information la plus importante pour le conseiller.
+    if "fond fermé" in low or "fonds fermé" in low:
+        return {"kind": "ferme", "raw": text, "tiers": []}
+
     if "aucune pénalité" in low or "pas de lock-up" in low.replace("lock up", "lock-up"):
         return {"kind": "aucune", "raw": text, "tiers": []}
 

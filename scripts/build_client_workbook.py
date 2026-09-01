@@ -295,7 +295,10 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         isin_raw = src_ws.cell(row=r, column=2).value
         isin = isin_raw.strip() if isinstance(isin_raw, str) else isin_raw
         fund = funds_by_isin.get(isin) if isin else None
-        if not fund or not has_rachat_calendar(calendar, isin):
+        # Un fonds fermé (aucune sortie possible hors cas exceptionnel) est toujours retenu même
+        # sans calendrier de rachat : c'est justement l'information à signaler au conseiller.
+        is_ferme = bool(fund and fund.get("penalite", {}).get("kind") == "ferme")
+        if not fund or not (is_ferme or has_rachat_calendar(calendar, isin)):
             continue
         nom = src_ws.cell(row=r, column=1).value or fund["nom"]
         category = row_to_category.get(r) or ""
@@ -467,10 +470,12 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         # Pénalité de sortie : vide dès qu'il n'y a rien d'actionnable à signaler — pas de
         # pénalité prévue pour ce fonds (kind="aucune"), aucune pénalité renseignée dans la base
         # (kind="inconnue", traité comme "pas de pénalité"), ou délai de pénalité dépassé. Un
-        # message n'apparaît que dans les deux cas où le conseiller doit agir : une règle
-        # ambiguë à vérifier à la main, ou une pénalité active à signaler au client.
+        # message n'apparaît que dans les cas où le conseiller doit agir : fonds fermé (sortie
+        # impossible hors cas exceptionnel), règle ambiguë à vérifier à la main, ou pénalité
+        # active à signaler au client.
         ws[f"J{r}"] = (
             f'=_xlfn.IFS('
+            f'{S}{r}="ferme","🔒 FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds.",'
             f'{S}{r}="manuel","⚠️ À VÉRIFIER MANUELLEMENT : "&{Tc}{r},'
             f'{S}{r}="aucune","",'
             f'{S}{r}="inconnue","",'

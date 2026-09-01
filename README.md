@@ -65,11 +65,27 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    sur **une ligne par titulaire** (chacune avec sa propre date d'investissement et son propre
    statut de pénalité, puisqu'ils peuvent différer). La colonne reste vide si le fichier ne
    subdivise pas les contrats par titulaire (client à titulaire unique).
-3. Le fichier complété se télécharge automatiquement (`nomdufichier - avec calendrier de sortie.xlsx`).
+
+   **Fonds fermés** : certains fonds n'acceptent plus aucun rachat (hors cas exceptionnel prévu
+   au règlement, ex. décès, invalidité) — la base Althos les marque « fond fermé ». Ces fonds sont
+   retenus dans la feuille **même sans calendrier de rachat**, avec un message explicite
+   « 🔒 FONDS FERMÉ — sortie non disponible... » dans la colonne Pénalité de sortie, pour que le
+   conseiller ne les découvre pas au moment où le client demande à sortir.
+3. **Si des fonds détenus ont une pénalité de sortie qui dépend d'une date d'investissement**
+   (règle à seuil, soft lock-up ou dégressive), la page affiche directement une liste de ces
+   fonds avec un champ de saisie par fonds — le conseiller renseigne les dates connues sans
+   ouvrir Excel, ce qui lui montre immédiatement quels fonds sont concernés (les fonds sans
+   pénalité datée, fermés, ou à vérifier manuellement n'apparaissent pas dans cette liste,
+   puisqu'ils ne dépendent pas d'une date). Une case laissée vide reste à compléter plus tard,
+   directement dans le fichier Excel généré. Cette saisie reste 100% locale au navigateur — rien
+   n'est envoyé sur un serveur, il n'y a pas d'intranet à héberger. Un bouton permet de générer le
+   fichier sans saisir de date si besoin.
+4. Le fichier complété se télécharge automatiquement (`nomdufichier - avec calendrier de sortie.xlsx`).
    Un bouton permet de le retélécharger si besoin.
-4. Ouvrir le fichier téléchargé, saisir la date d'investissement pour chaque fonds listé : les
-   5 dates de rachat et la pénalité de sortie se recalculent automatiquement (formules Excel), à
-   partir des échéances les plus proches **de la date du jour** au moment de l'ouverture.
+5. Pour les dates non saisies à l'étape 3, ouvrir le fichier téléchargé et compléter la date
+   d'investissement pour le fonds concerné : les 5 dates de rachat et la pénalité de sortie se
+   recalculent automatiquement (formules Excel), à partir des échéances les plus proches **de la
+   date du jour** au moment de l'ouverture.
 
 **Comment ça détecte les fonds à retenir ?** Aucune structure de fichier n'est supposée fixe :
 l'outil repère la feuille via son en-tête (« Support » en colonne A), la colonne « TOTAL » (montant
@@ -180,9 +196,9 @@ localement via `ajout-calendrier-sortie.html`, qui ne transmet rien en dehors du
   Liquid GPE, absent de la feuille `Calendriers` à plat) — voir `load_calendrier_par_fonds()` et
   `merge_calendriers()` dans `scripts/build_data.py`. En cas de chevauchement, la feuille
   `Calendriers` (entretenue à la main) reste prioritaire ; le second tableau ne comble que les
-  trous (nouveaux fonds, mois manquants). 38 fonds couverts au total au moment de cette mise à
+  trous (nouveaux fonds, mois manquants). 47 fonds couverts au total au moment de cette mise à
   jour (sur 144 fonds non cotés suivis) ; pour les autres, l'outil affiche « Calendrier non
-  disponible ».
+  disponible » (sauf les fonds fermés, retenus quand même — voir plus haut).
 - **Devise, SRI, frais, liquidité, temporalité, lien DICI** : feuille `Fonds` du classeur
   Bibliothèque de fonds, rattachée par ISIN.
 
@@ -199,6 +215,11 @@ structurée par `parse_penalite()` dans `scripts/build_data.py` :
 | `degressif` | « Pénalité dégressive : 0-18 mois 7,5% · 18-36 mois 5% · ... » | Palier applicable déterminé selon la détention ; 0% = vide (non concerné) |
 | `manuel` | Formulations ambiguës ou taux multiples selon la part détenue (ex. Hg Fusion) | **Aucun calcul automatique** — le texte brut est affiché avec un avertissement « à vérifier manuellement » |
 | `inconnue` | Pas de texte renseigné dans la base | Cellule **vide** — pas de pénalité renseignée dans la base équivaut à pas de pénalité |
+| `ferme` | « fond fermé » (détecté en priorité sur toute autre mention dans le même texte) | Fonds retenu même sans calendrier de rachat, avec le message « 🔒 FONDS FERMÉ — sortie non disponible... » — aucune sortie possible hors cas exceptionnel prévu au règlement |
+
+Seuls les fonds `seuil` / `soft` / `degressif` ont une pénalité qui dépend de la date
+d'investissement : ce sont eux, et eux seuls, que la page de dépôt automatisé (voir plus haut)
+propose de renseigner directement dans le navigateur avant de générer le fichier.
 
 Le texte brut d'origine (quand il existe) est affiché avec le statut « CONCERNÉ », pour permettre
 une vérification en un coup d'œil avant de répondre à un client — conformément à la procédure de
@@ -245,11 +266,13 @@ la feuille `Consolidation`.
 | Rachat — exécuté | Date d'exécution de l'ordre |
 | Rachat — publié | Date de publication de la VL |
 | Rachat — cash reçu | Date de règlement / réception du cash |
-| Pénalité de sortie | Vide dès qu'il n'y a rien à signaler (aucune pénalité prévue, non renseignée dans la base, ou délai dépassé) ; message uniquement si concerné par une pénalité active ou si la règle est ambiguë (à vérifier manuellement) |
+| Pénalité de sortie | Vide dès qu'il n'y a rien à signaler (aucune pénalité prévue, non renseignée dans la base, ou délai dépassé) ; message si concerné par une pénalité active, si la règle est ambiguë (à vérifier manuellement), ou si le fonds est fermé (sortie non disponible) |
 
-Si aucun fonds détenu n'a de calendrier de rachat connu, la feuille l'indique clairement au lieu
-d'un tableau vide. Un même fonds détenu via plusieurs titulaires (ex. Monsieur ET Madame, chacun
-via son propre contrat) apparaît sur une ligne par titulaire. La présentation (bandeaux de
+Si aucun fonds détenu n'a de calendrier de rachat connu (ni fonds fermé), la feuille l'indique
+clairement au lieu d'un tableau vide. Un même fonds détenu via plusieurs titulaires (ex. Monsieur
+ET Madame, chacun via son propre contrat) apparaît sur une ligne par titulaire. Le script Python
+n'a pas d'équivalent au formulaire de saisie de dates dans le navigateur (voir plus haut) : les
+dates s'y saisissent directement dans le fichier Excel généré, comme avant. La présentation (bandeaux de
 catégorie beige, en-tête coloré, police) reprend celle de la feuille Consolidation — voir la
 section dédiée à `ajout-calendrier-sortie.html` plus haut pour le détail.
 

@@ -319,13 +319,21 @@
       const isinRaw = srcWs.getCell(srcRow, 2).value;
       const isin = typeof isinRaw === "string" ? isinRaw.trim() : isinRaw;
       const fund = isin ? fundsByIsin.get(isin) : null;
-      if (!fund || !hasRachatCalendar(calendar, isin)) return;
+      // Un fonds fermé (aucune sortie possible hors cas exceptionnel) est toujours retenu même
+      // sans calendrier de rachat : c'est justement l'information à signaler au conseiller.
+      const isFerme = fund && fund.penalite && fund.penalite.kind === "ferme";
+      if (!fund || !(isFerme || hasRachatCalendar(calendar, isin))) return;
       const nom = srcWs.getCell(srcRow, 1).value || fund.nom;
       const category = rowToCategory[srcRow] || "";
+      // Seuls les fonds à règle de pénalité datée (seuil/soft/dégressif) ont besoin d'une date
+      // d'investissement pour statuer : "aucune"/"inconnue"/"manuel"/"ferme" ne dépendent pas de
+      // la date. C'est cette liste-là qu'on demandera au conseiller de renseigner.
+      const penKind = fund.penalite && fund.penalite.kind;
+      const needsDate = penKind === "seuil" || penKind === "soft" || penKind === "degressif";
       holdingByOwner(srcWs, srcRow, totalCol, ownerLabels).forEach(([owner, amount]) => {
         const isHeld = amount === null || Math.abs(amount) > 0.005;
         if (!isHeld) return;
-        selected.push({ isin, nom, category, owner, amount });
+        selected.push({ isin, nom, category, owner, amount, needsDate });
       });
     });
 
@@ -401,13 +409,14 @@
       ws.getCell(FIRST_DATA_ROW, 1).alignment = { wrapText: true, vertical: "middle" };
       ws.getRow(FIRST_DATA_ROW).height = 30;
       applyPrintSetup(ws, FIRST_DATA_ROW, headers.length);
-      return { ws, selectedCount: 0, fundRowsScanned: fundRows.length };
+      return { ws, selectedCount: 0, fundRowsScanned: fundRows.length, rowsNeedingDate: [] };
     }
 
     // 3) Bandeaux de catégorie (beige, comme dans Consolidation) + une ligne par fonds/titulaire
     //    retenu, avec les formules de calcul.
     let r = FIRST_DATA_ROW;
     let currentCategory = undefined; // undefined != "" : force le 1er bandeau même si catégorie ""
+    const rowsNeedingDate = [];
     selected.forEach((item) => {
       if (categoryStyle && item.category !== currentCategory) {
         currentCategory = item.category;
@@ -434,6 +443,10 @@
       const dateCell = ws.getCell(r, 4);
       dateCell.numFmt = "dd/mm/yyyy";
       dateCell.font = dataFont;
+
+      if (item.needsDate) {
+        rowsNeedingDate.push({ row: r, titulaire: item.owner || "", fonds: item.nom, isin: item.isin, categorie: currentCategory || "" });
+      }
 
       const b = `"${item.isin}"`;
       const c = `$D${r}`;
@@ -492,10 +505,12 @@
       // Pénalité de sortie : vide dès qu'il n'y a rien d'actionnable à signaler — pas de
       // pénalité prévue pour ce fonds (kind="aucune"), aucune pénalité renseignée dans la base
       // (kind="inconnue", traité comme "pas de pénalité"), ou délai de pénalité dépassé. Un
-      // message n'apparaît que dans les deux cas où le conseiller doit agir : une règle
-      // ambiguë à vérifier à la main, ou une pénalité active à signaler au client.
+      // message n'apparaît que dans les cas où le conseiller doit agir : fonds fermé (sortie
+      // impossible hors cas exceptionnel), règle ambiguë à vérifier à la main, ou pénalité
+      // active à signaler au client.
       setF(ws, `J${r}`,
         `_xlfn.IFS(` +
+        `${S}${r}="ferme","🔒 FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds.",` +
         `${S}${r}="manuel","⚠️ À VÉRIFIER MANUELLEMENT : "&${Tc}${r},` +
         `${S}${r}="aucune","",` +
         `${S}${r}="inconnue","",` +
@@ -513,7 +528,7 @@
     });
 
     applyPrintSetup(ws, r - 1, headers.length);
-    return { ws, selectedCount: selected.length, fundRowsScanned: fundRows.length };
+    return { ws, selectedCount: selected.length, fundRowsScanned: fundRows.length, rowsNeedingDate };
   }
 
   /** Zone d'impression = tout le tableau, mise à l'échelle sur une page en largeur, paysage —
@@ -576,7 +591,7 @@
     const wsCal = writeBddCalendrier(workbook, CALENDAR);
     const wsPen = writeBddPenalites(workbook, FUNDS);
 
-    const { ws: exitWs, selectedCount, fundRowsScanned } =
+    const { ws: exitWs, selectedCount, fundRowsScanned, rowsNeedingDate } =
       buildExitSheet(workbook, srcWs, headerRow, CALENDAR, wsCal.rowCount, wsPen.rowCount, fundsByIsin);
 
     // Ordre des feuilles : Consolidation, Calendrier de sortie, puis le reste tel quel.
@@ -590,12 +605,27 @@
     exitWs.orderNo = 2;
     workbook.views = [{ activeTab: workbook.worksheets.indexOf(exitWs) }];
 
-    const buffer = await workbook.xlsx.writeBuffer();
+    // Le classeur n'est volontairement pas encore sérialisé ici : si rowsNeedingDate n'est pas
+    // vide, l'appelant doit d'abord proposer au conseiller de saisir ces dates (directement dans
+    // le navigateur, sans repasser par Excel), les injecter dans exitWs colonne D, puis appeler
+    // finalizeExitCalendarWorkbook(). S'il n'y a rien à saisir, l'appelant peut finaliser tout de
+    // suite.
     return {
-      buffer,
+      workbook,
+      exitWs,
       stats: { selectedCount, fundRowsScanned, headerRow },
+      rowsNeedingDate,
     };
   }
 
+  /** Sérialise le classeur en .xlsx (buffer), une fois les éventuelles dates d'investissement
+   *  injectées dans exitWs. Étape séparée de buildExitCalendarWorkbook pour permettre au
+   *  conseiller de saisir ces dates dans le navigateur avant de générer le fichier final. */
+  async function finalizeExitCalendarWorkbook(workbook) {
+    const buffer = await workbook.xlsx.writeBuffer();
+    return { buffer };
+  }
+
   global.buildExitCalendarWorkbook = buildExitCalendarWorkbook;
+  global.finalizeExitCalendarWorkbook = finalizeExitCalendarWorkbook;
 })(window);

@@ -127,6 +127,28 @@
     color:var(--text-muted);
     line-height:1.6;
   }
+
+  .dateform-intro{font-size:13px;color:var(--text-muted);margin:0 0 14px;}
+  .dateform-cat{
+    font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;
+    color:var(--navy);background:#eef2f7;padding:6px 10px;border-radius:6px;
+    margin:14px 0 6px;
+  }
+  .dateform-cat:first-child{margin-top:0;}
+  table.dateform-table{width:100%;border-collapse:collapse;margin-bottom:4px;}
+  table.dateform-table th{
+    text-align:left;font-size:11px;color:var(--text-muted);text-transform:uppercase;
+    letter-spacing:.02em;padding:0 8px 6px;font-weight:600;
+  }
+  table.dateform-table td{
+    padding:6px 8px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle;
+  }
+  table.dateform-table td.fonds-cell{font-weight:600;}
+  table.dateform-table td.isin-cell{color:var(--text-muted);font-size:12px;}
+  table.dateform-table input[type="date"]{
+    border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:13px;
+    font-family:inherit;width:100%;
+  }
 </style>
 </head>
 <body>
@@ -137,7 +159,10 @@
     <p>Déposez le fichier Excel de consolidation d'un client : une nouvelle feuille « Calendrier
       de sortie » est générée automatiquement, listant uniquement les fonds non cotés détenus par
       ce client pour lesquels un calendrier de rachat (sortie) est connu, avec les dates de rachat
-      (ordre avant, VL, exécuté, publié, cash reçu) et la pénalité de sortie éventuelle.</p>
+      (ordre avant, VL, exécuté, publié, cash reçu) et la pénalité de sortie éventuelle. Si
+      certains fonds détenus ont une pénalité de sortie qui dépend d'une date d'investissement,
+      la page vous les liste directement pour que vous les renseigniez avant de générer le
+      fichier.</p>
   </header>
 
   <div class="banner">
@@ -162,6 +187,18 @@
     </div>
   </div>
 
+  <div class="panel" id="dateFormPanel" style="display:none;">
+    <p class="dateform-intro">
+      <b id="dateFormCount"></b> fonds détenus par ce client ont une pénalité de sortie qui dépend
+      de la date d'investissement — vous pouvez la renseigner ici pour que le fichier généré
+      indique directement si le client est concerné. Une case laissée vide reste à compléter plus
+      tard dans le fichier Excel.
+    </p>
+    <div id="dateFormBody"></div>
+    <button class="btn" id="generateBtn" type="button">Générer le fichier Excel</button>
+    <button class="btn secondary" id="skipDatesBtn" type="button">Générer sans saisir les dates</button>
+  </div>
+
   <footer class="app-footer">
     <p>
       Traitement 100% local dans le navigateur — le fichier déposé n'est jamais envoyé à un
@@ -184,9 +221,16 @@
   const downloadArea = document.getElementById("downloadArea");
   const downloadBtn = document.getElementById("downloadBtn");
   const resetBtn = document.getElementById("resetBtn");
+  const dateFormPanel = document.getElementById("dateFormPanel");
+  const dateFormCount = document.getElementById("dateFormCount");
+  const dateFormBody = document.getElementById("dateFormBody");
+  const generateBtn = document.getElementById("generateBtn");
+  const skipDatesBtn = document.getElementById("skipDatesBtn");
 
   let pendingBlobUrl = null;
   let pendingFilename = null;
+  let pendingWorkbook = null;
+  let pendingExitWs = null;
 
   function setStatus(kind, html){
     statusEl.className = "status show " + kind;
@@ -215,7 +259,11 @@
   resetBtn.addEventListener("click", function(){
     clearStatus();
     downloadArea.style.display = "none";
+    dateFormPanel.style.display = "none";
+    dateFormBody.innerHTML = "";
     fileInput.value = "";
+    pendingWorkbook = null;
+    pendingExitWs = null;
     if (pendingBlobUrl) { URL.revokeObjectURL(pendingBlobUrl); pendingBlobUrl = null; }
   });
 
@@ -227,6 +275,8 @@
 
   async function handleFile(file){
     downloadArea.style.display = "none";
+    dateFormPanel.style.display = "none";
+    dateFormBody.innerHTML = "";
     if (!/\.xlsx$/i.test(file.name)){
       setStatus("error", '<div class="line1">Format non supporté</div>Seuls les fichiers .xlsx sont acceptés.');
       return;
@@ -236,9 +286,8 @@
     try{
       const buf = await file.arrayBuffer();
       const result = await buildExitCalendarWorkbook(buf, window.FUNDS_DATA);
-      const blob = new Blob([result.buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      if (pendingBlobUrl) URL.revokeObjectURL(pendingBlobUrl);
-      pendingBlobUrl = URL.createObjectURL(blob);
+      pendingWorkbook = result.workbook;
+      pendingExitWs = result.exitWs;
       pendingFilename = outputFilename(file.name);
 
       const s = result.stats;
@@ -251,8 +300,12 @@
         '<li>' + s.fundRowsScanned + ' ligne(s) de fonds analysée(s) dans la consolidation d\'origine.</li>' +
         '</ul>'
       );
-      downloadArea.style.display = "block";
-      triggerDownload();
+
+      if (result.rowsNeedingDate && result.rowsNeedingDate.length){
+        renderDateForm(result.rowsNeedingDate);
+      } else {
+        await finalizeAndDownload();
+      }
     } catch(err){
       console.error(err);
       setStatus("error",
@@ -260,6 +313,60 @@
       );
     }
   }
+
+  function renderDateForm(rows){
+    dateFormCount.textContent = rows.length;
+    let html = "";
+    let currentCat = undefined;
+    rows.forEach(function(r){
+      if (r.categorie !== currentCat){
+        currentCat = r.categorie;
+        if (currentCat) html += '<div class="dateform-cat">' + escapeHtml(currentCat) + '</div>';
+        html += '<table class="dateform-table"><thead><tr>' +
+          (rows.some(function(x){ return x.titulaire; }) ? '<th style="width:16%">Titulaire</th>' : '') +
+          '<th>Fonds</th><th style="width:18%">Date d\'investissement</th></tr></thead><tbody>';
+      }
+      html += '<tr data-row="' + r.row + '">' +
+        (rows.some(function(x){ return x.titulaire; }) ? '<td>' + escapeHtml(r.titulaire) + '</td>' : '') +
+        '<td><span class="fonds-cell">' + escapeHtml(r.fonds) + '</span><br><span class="isin-cell">' + escapeHtml(r.isin) + '</span></td>' +
+        '<td><input type="date" data-row="' + r.row + '"></td>' +
+        '</tr>';
+    });
+    html += "</tbody></table>";
+    dateFormBody.innerHTML = html;
+    dateFormPanel.style.display = "block";
+    dateFormPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function finalizeAndDownload(){
+    const result = await finalizeExitCalendarWorkbook(pendingWorkbook);
+    const blob = new Blob([result.buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    if (pendingBlobUrl) URL.revokeObjectURL(pendingBlobUrl);
+    pendingBlobUrl = URL.createObjectURL(blob);
+    downloadArea.style.display = "block";
+    triggerDownload();
+  }
+
+  generateBtn.addEventListener("click", async function(){
+    if (!pendingExitWs) return;
+    const inputs = dateFormBody.querySelectorAll("input[type=date][data-row]");
+    inputs.forEach(function(input){
+      if (!input.value) return; // case laissée vide : reste à compléter dans le fichier
+      const row = parseInt(input.getAttribute("data-row"), 10);
+      const parts = input.value.split("-").map(Number); // input.value = "yyyy-mm-dd"
+      const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+      const cell = pendingExitWs.getCell(row, 4);
+      cell.value = d;
+      cell.numFmt = "dd/mm/yyyy";
+    });
+    dateFormPanel.style.display = "none";
+    await finalizeAndDownload();
+  });
+
+  skipDatesBtn.addEventListener("click", async function(){
+    dateFormPanel.style.display = "none";
+    await finalizeAndDownload();
+  });
 
   function triggerDownload(){
     if (!pendingBlobUrl) return;
