@@ -11117,6 +11117,8 @@ window.FUNDS_DATA = {
     return Math.round(lines * (fontSize * 1.35 + 2));
   }
 
+  const DEFAULT_PENALTY_ROW_HEIGHT = 60;
+
   // -------------------------------------------------------------------------
   // Pénalité -> 9 valeurs numériques pour une cascade IFS (identique à
   // build_tier_columns() dans scripts/build_client_workbook.py)
@@ -11523,9 +11525,9 @@ window.FUNDS_DATA = {
       ws.getRow(atRow).height = 22;
     }
     if (!showOwnerHeadings) writeHeaderRow(HEADER_ROW_OUT);
-    const PENALTY_COL_WIDTH = 100; // large exprès : la plupart des textes de pénalité y tiennent sur une seule ligne
+    const PENALTY_COL_WIDTH = 63;
     const CHARS_PER_LINE = Math.round(PENALTY_COL_WIDTH); // approximation ~1 caractère par unité de largeur
-    const widths = [40, 17, 22, 22, 15, 19, 18, 20, PENALTY_COL_WIDTH];
+    const widths = [37, 16, 22, 22, 15, 19, 18, 20, PENALTY_COL_WIDTH];
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     HELPER_NAMES.forEach((name) => { ws.getColumn(colNumOf(helperCol(name))).hidden = true; });
@@ -11669,13 +11671,12 @@ window.FUNDS_DATA = {
         const penCell = ws.getCell(`I${r}`);
         penCell.font = dataFont;
         penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-        // Hauteur calculée à partir de la longueur RÉELLE du texte de pénalité de ce fonds
-        // (connue à la génération, via la base) : jamais une valeur fixe qui finirait par couper
-        // le message le plus long, ni un "auto" qu'Excel ne recalcule pas de façon fiable pour
-        // du texte arrivé par formule (contrairement à une saisie manuelle).
+        // Hauteur de 60pt par défaut (confortable pour l'immense majorité des messages, 2-3
+        // lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
+        // inhabituellement long (ça arrive), pour ne jamais le couper.
         const penInfo = item.penalite || { kind: "inconnue", raw: null };
         const lines = estimatePenaltyLines(penInfo.kind, (penInfo.raw || "").length, (penInfo.dureeVie || "").length, CHARS_PER_LINE);
-        ws.getRow(r).height = heightForLines(lines, baseFontSize);
+        ws.getRow(r).height = Math.max(DEFAULT_PENALTY_ROW_HEIGHT, heightForLines(lines, baseFontSize));
         r += 1;
       });
 
@@ -11846,7 +11847,7 @@ window.FUNDS_DATA = {
     const dataFont = { name: baseFontName, size: baseFontSize, bold: false };
     const twoRowHeader = hasTwoRowHeader(srcWs, headerRow, 1);
     const gridBorder = buildGridBorder(srcWs, headerRow);
-    const PENALTY_COL_WIDTH = 100; // large exprès : la plupart des textes de pénalité y tiennent sur une seule ligne
+    const PENALTY_COL_WIDTH = 63; // même largeur que sur "Calendrier de sortie", pour un rendu cohérent
     const CHARS_PER_LINE = Math.round(PENALTY_COL_WIDTH);
 
     [[cashCol, "Rachat — cash reçu", 16], [penCol, "Pénalité de sortie", PENALTY_COL_WIDTH]].forEach(([col, label, width]) => {
@@ -11914,13 +11915,13 @@ window.FUNDS_DATA = {
       penCell.font = dataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
 
-      // Hauteur calculée à partir de la longueur RÉELLE du texte de pénalité de ce fonds (connue
-      // à la génération), qui remplace toute hauteur figée héritée du fichier d'origine du
-      // conseiller (potentiellement trop courte pour ce nouveau texte).
+      // Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce
+      // fonds précis est inhabituellement long — remplace toute hauteur figée héritée du fichier
+      // d'origine du conseiller (potentiellement trop courte pour ce nouveau texte).
       const fund = fundsByIsin.get(isin);
       const penInfo = (fund && fund.penalite) || { kind: "inconnue", raw: null };
       const lines = estimatePenaltyLines(penInfo.kind, (penInfo.raw || "").length, (penInfo.dureeVie || "").length, CHARS_PER_LINE);
-      srcWs.getRow(r).height = heightForLines(lines, baseFontSize);
+      srcWs.getRow(r).height = Math.max(DEFAULT_PENALTY_ROW_HEIGHT, heightForLines(lines, baseFontSize));
     });
 
     extendMergeRight(srcWs, 1, penCol);

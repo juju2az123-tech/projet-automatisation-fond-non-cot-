@@ -68,13 +68,13 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    désactivé, comme sur Consolidation, pour un fond bien blanc. Police uniforme sur toute la
    feuille (celle utilisée par la Consolidation, pas un choix arbitraire).
 
-   **Colonne Pénalité de sortie large exprès**, avec un retour à la ligne explicite entre chaque
-   phrase du message (ex. « Pénalité de sortie : ... » puis, sur sa propre ligne, « Durée de
-   détention actuelle : X mois. ») : la hauteur de chaque ligne est calculée à la génération à
-   partir de la longueur réelle du texte de la base pour ce fonds précis (pas une valeur fixe, ni
-   un ajustement automatique par Excel — peu fiable pour du texte arrivé par formule plutôt que
-   saisi à la main), pour ne jamais couper le message le plus long tout en restant compact pour
-   les messages courts.
+   **Colonne Pénalité de sortie** avec un retour à la ligne explicite entre chaque phrase du
+   message (ex. « Pénalité de sortie : ... » puis, sur sa propre ligne, « Durée de détention
+   actuelle : X mois. »). Chaque ligne de fonds a une hauteur de 60pt par défaut (confortable pour
+   l'immense majorité des messages) — augmentée seulement si le texte réel de la base pour ce
+   fonds précis est inhabituellement long, à partir de sa longueur réelle connue à la génération
+   (jamais un ajustement automatique par Excel : peu fiable pour du texte arrivé par formule
+   plutôt que saisi à la main).
 
    La zone d'impression est définie sur tout le tableau généré, en orientation paysage et mise à
    l'échelle sur une page en largeur (comme sur Consolidation) — imprimer ou exporter en PDF

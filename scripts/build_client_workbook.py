@@ -115,6 +115,9 @@ def height_for_lines(lines, font_size):
     return round(lines * (font_size * 1.35 + 2))
 
 
+DEFAULT_PENALTY_ROW_HEIGHT = 60
+
+
 def find_total_column(ws, header_row):
     for c in range(3, ws.max_column + 1):
         v = ws.cell(row=header_row, column=c).value
@@ -598,9 +601,9 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     if not show_owner_headings:
         write_header_row(HEADER_ROW_OUT)
 
-    PENALTY_COL_WIDTH = 100  # large exprès : la plupart des textes de pénalité y tiennent sur une seule ligne
+    PENALTY_COL_WIDTH = 63
     CHARS_PER_LINE = round(PENALTY_COL_WIDTH)  # approximation ~1 caractère par unité de largeur
-    widths = [40, 17, 22, 22, 15, 19, 18, 20, PENALTY_COL_WIDTH]
+    widths = [37, 16, 22, 22, 15, 19, 18, 20, PENALTY_COL_WIDTH]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
 
@@ -740,13 +743,12 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             pen_cell = ws[f"I{r}"]
             pen_cell.font = data_font
             pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-            # Hauteur calculée à partir de la longueur RÉELLE du texte de pénalité de ce fonds
-            # (connue à la génération, via la base) : jamais une valeur fixe qui finirait par
-            # couper le message le plus long, ni un "auto" qu'Excel ne recalcule pas de façon
-            # fiable pour du texte arrivé par formule (contrairement à une saisie manuelle).
+            # Hauteur de 60pt par défaut (confortable pour l'immense majorité des messages, 2-3
+            # lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
+            # inhabituellement long (ça arrive), pour ne jamais le couper.
             pen_info = item.get("penalite") or {"kind": "inconnue", "raw": None}
             lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), CHARS_PER_LINE)
-            ws.row_dimensions[r].height = height_for_lines(lines, data_font.size)
+            ws.row_dimensions[r].height = max(DEFAULT_PENALTY_ROW_HEIGHT, height_for_lines(lines, data_font.size))
             r += 1
 
         # 1 ligne vide (non bordée) entre 2 titulaires, pour que 2 tableaux distincts ne
@@ -810,7 +812,7 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     data_font = Font(name=header_font.name, size=header_font.size, bold=False)
     two_row_header = has_two_row_header(src_ws, header_row, 1)
     grid_border = build_grid_border(src_ws, header_row)
-    PENALTY_COL_WIDTH = 100  # large exprès : la plupart des textes de pénalité y tiennent sur une seule ligne
+    PENALTY_COL_WIDTH = 63  # même largeur que sur "Calendrier de sortie", pour un rendu cohérent
     CHARS_PER_LINE = round(PENALTY_COL_WIDTH)
 
     for col, label, width in ((cash_col, "Rachat — cash reçu", 16), (pen_col, "Pénalité de sortie", PENALTY_COL_WIDTH)):
@@ -874,13 +876,13 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         pen_cell.font = data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-        # Hauteur calculée à partir de la longueur RÉELLE du texte de pénalité de ce fonds
-        # (connue à la génération), qui remplace toute hauteur figée héritée du fichier
-        # d'origine du conseiller (potentiellement trop courte pour ce nouveau texte).
+        # Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce
+        # fonds précis est inhabituellement long — remplace toute hauteur figée héritée du
+        # fichier d'origine du conseiller (potentiellement trop courte pour ce nouveau texte).
         fund = funds_by_isin.get(isin)
         pen_info = (fund or {}).get("penalite") or {"kind": "inconnue", "raw": None}
         lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), CHARS_PER_LINE)
-        src_ws.row_dimensions[r].height = height_for_lines(lines, data_font.size)
+        src_ws.row_dimensions[r].height = max(DEFAULT_PENALTY_ROW_HEIGHT, height_for_lines(lines, data_font.size))
 
     extend_merge_right(src_ws, 1, pen_col)
     extend_print_area(src_ws, pen_col)
