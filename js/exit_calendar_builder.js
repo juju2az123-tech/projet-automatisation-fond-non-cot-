@@ -369,6 +369,35 @@
       });
     });
 
+    // Regroupement par titulaire : un tableau complètement séparé par titulaire (Monsieur /
+    // Madame / société...), plutôt qu'une colonne "Titulaire" au milieu d'un tableau commun —
+    // pour que le conseiller voie d'un coup d'œil tout ce qui est détenu par chacun. L'ordre de
+    // ces titulaires suit l'ordre de leurs colonnes "Contrat" dans Consolidation (premier titulaire
+    // rencontré = premier affiché). Si le fichier n'a qu'un seul titulaire (pas de subdivision par
+    // contrat, ownerLabels toujours ""), on garde un unique tableau, sans bandeau de titulaire.
+    const ownerOrder = [];
+    const byOwner = new Map();
+    selected.forEach((item) => {
+      const key = item.owner || "";
+      if (!byOwner.has(key)) { byOwner.set(key, []); ownerOrder.push(key); }
+      byOwner.get(key).push(item);
+    });
+    const showOwnerHeadings = ownerOrder.length > 1 || (ownerOrder.length === 1 && ownerOrder[0] !== "");
+    // Style du bandeau de titulaire : repris tel quel de la ligne de Consolidation où figurent
+    // les libellés "Monsieur" / "Madame" / société (juste au-dessus de l'en-tête "Support") —
+    // même principe que pour les autres styles de cette feuille : jamais une couleur codée en dur.
+    let ownerHeaderStyle = null;
+    if (showOwnerHeadings) {
+      const ownerRow = headerRow - 1;
+      for (let c = 3; c < totalCol; c++) {
+        const v = srcWs.getCell(ownerRow, c).value;
+        if (v !== null && v !== undefined && String(v).trim() !== "") {
+          ownerHeaderStyle = cloneStyle(srcWs.getCell(ownerRow, c));
+          break;
+        }
+      }
+    }
+
     // 2) Présentation "à la Althos" : bandeau de titre + sous-titre daté (repris tel quel des
     //    lignes 1 et 3 de Consolidation — même couleur, même police, même mise en italique),
     //    en-tête de tableau dans le même bleu que Consolidation et le titre, bandeaux de
@@ -399,7 +428,7 @@
     const gridBorder = { top: gridSide, left: gridSide, bottom: gridSide, right: gridSide };
 
     const headers = [
-      "Titulaire", "Fonds", "ISIN", "Date d'investissement",
+      "Fonds", "ISIN", "Date d'investissement",
       "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
       "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie",
     ];
@@ -428,7 +457,7 @@
       cell.border = gridBorder;
     });
     ws.getRow(HEADER_ROW_OUT).height = 22;
-    const widths = [14, 32, 14, 22, 22, 15, 19, 18, 20, 46];
+    const widths = [32, 14, 22, 22, 15, 19, 18, 20, 46];
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
     HELPER_NAMES.forEach((name) => { ws.getColumn(colNumOf(helperCol(name))).hidden = true; });
@@ -444,119 +473,136 @@
       return { ws, selectedCount: 0, fundRowsScanned: fundRows.length, rowsNeedingDate: [], firstDataRow: null, lastDataRow: null };
     }
 
-    // 3) Bandeaux de catégorie (beige, comme dans Consolidation) + une ligne par fonds/titulaire
-    //    retenu, avec les formules de calcul.
+    // 3) Un tableau complètement séparé par titulaire (bandeau de titulaire, puis bandeaux de
+    //    catégorie beige, puis une ligne par fonds retenu), avec les formules de calcul.
     let r = FIRST_DATA_ROW;
-    let currentCategory = undefined; // undefined != "" : force le 1er bandeau même si catégorie ""
     const rowsNeedingDate = [];
-    selected.forEach((item) => {
-      if (categoryStyle && item.category !== currentCategory) {
-        currentCategory = item.category;
-        ws.getCell(r, 1).value = currentCategory || "Autres fonds";
+    ownerOrder.forEach((ownerKey, ownerIdx) => {
+      if (showOwnerHeadings) {
+        const headingStyle = ownerHeaderStyle || headerStyle;
+        ws.getCell(r, 1).value = ownerKey || "Autres titulaires";
         for (let c = 1; c <= headers.length; c++) {
-          ws.getCell(r, c).style = JSON.parse(JSON.stringify(categoryStyle));
-          ws.getCell(r, c).border = gridBorder;
+          ws.getCell(r, c).style = JSON.parse(JSON.stringify(headingStyle));
         }
         ws.mergeCells(r, 1, r, headers.length);
-        ws.getCell(r, 1).alignment = { vertical: "middle" };
+        ws.getCell(r, 1).alignment = { horizontal: "center", vertical: "middle" };
         ws.getRow(r).height = 20;
         r += 1;
       }
 
-      for (let c = 1; c <= headers.length; c++) {
-        ws.getCell(r, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
-        ws.getCell(r, c).border = gridBorder;
-      }
-      ws.getCell(r, 1).value = item.owner || "";
-      ws.getCell(r, 2).value = item.nom;
-      ws.getCell(r, 3).value = item.isin;
-      [1, 2, 3].forEach((c) => { ws.getCell(r, c).font = dataFont; ws.getCell(r, c).alignment = { vertical: "middle" }; });
+      let currentCategory; // undefined != "" : force le 1er bandeau même si catégorie ""
+      byOwner.get(ownerKey).forEach((item) => {
+        if (categoryStyle && item.category !== currentCategory) {
+          currentCategory = item.category;
+          ws.getCell(r, 1).value = currentCategory || "Autres fonds";
+          for (let c = 1; c <= headers.length; c++) {
+            ws.getCell(r, c).style = JSON.parse(JSON.stringify(categoryStyle));
+            ws.getCell(r, c).border = gridBorder;
+          }
+          ws.mergeCells(r, 1, r, headers.length);
+          ws.getCell(r, 1).alignment = { vertical: "middle" };
+          ws.getRow(r).height = 20;
+          r += 1;
+        }
 
-      const dateCell = ws.getCell(r, 4);
-      dateCell.numFmt = "dd/mm/yyyy";
-      dateCell.font = dataFont;
+        for (let c = 1; c <= headers.length; c++) {
+          ws.getCell(r, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+          ws.getCell(r, c).border = gridBorder;
+        }
+        ws.getCell(r, 1).value = item.nom;
+        ws.getCell(r, 2).value = item.isin;
+        [1, 2].forEach((c) => { ws.getCell(r, c).font = dataFont; ws.getCell(r, c).alignment = { vertical: "middle" }; });
 
-      if (item.needsDate) {
-        rowsNeedingDate.push({ row: r, titulaire: item.owner || "", fonds: item.nom, isin: item.isin, categorie: currentCategory || "" });
-      }
+        const dateCell = ws.getCell(r, 3);
+        dateCell.numFmt = "dd/mm/yyyy";
+        dateCell.font = dataFont;
 
-      const b = `"${item.isin}"`;
-      const c = `$D${r}`;
+        if (item.needsDate) {
+          rowsNeedingDate.push({ row: r, titulaire: item.owner || "", fonds: item.nom, isin: item.isin, categorie: currentCategory || "" });
+        }
 
-      const L = helperCol("has_sortie"), M = helperCol("next_cutoff_sortie"), N = helperCol("next_val_sortie"),
-        Nx = helperCol("next_exec_sortie"), Np = helperCol("next_pub_sortie"), O = helperCol("next_cash_sortie");
-      const Q = helperCol("months_held");
-      const R = helperCol("pen_found");
-      const S = helperCol("kind");
-      const Tc = helperCol("raw");
-      const U1 = helperCol("max1"), V1 = helperCol("rate1"), W1 = helperCol("max2"), X1 = helperCol("rate2"),
-        Y1 = helperCol("max3"), Z1 = helperCol("rate3"), AA1 = helperCol("max4"), AB1 = helperCol("rate4"), AC1 = helperCol("rate5");
-      const AD1 = helperCol("rate_now");
+        const b = `"${item.isin}"`;
+        const c = `$C${r}`;
 
-      setF(ws, `${L}${r}`, `COUNTIFS(${cal("A")},${b},${cal("C")},"Rachat")`);
-      setF(ws, `${M}${r}`, `IF(${L}${r}=0,"",IFERROR(_xlfn.MINIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},">="&TODAY()),""))`);
-      // VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS avec
-      // une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une reconstruction de
-      // clé texte + MATCH, plus fragile) — même mécanisme que ${M} ci-dessus, qui fonctionne de
-      // façon fiable. MINIFS ignore les cellules vides : si ce champ précis n'est pas renseigné
-      // dans la base pour cette échéance, MINIFS ne trouve aucune valeur numérique et renvoie 0
-      // (jamais une vraie erreur) — sans la vérification "=0" ci-dessous, Excel afficherait ce 0
-      // comme une date, "00/01/1900", au lieu de laisser la cellule vide.
-      const minifsField = (col) =>
-        `IF(${M}${r}="","",IFERROR(IF(_xlfn.MINIFS(${cal(col)},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},${M}${r})=0,"",` +
-        `_xlfn.MINIFS(${cal(col)},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},${M}${r})),""))`;
-      setF(ws, `${N}${r}`, minifsField("E"));
-      setF(ws, `${Nx}${r}`, minifsField("F"));
-      setF(ws, `${Np}${r}`, minifsField("G"));
-      setF(ws, `${O}${r}`, minifsField("H"));
+        const L = helperCol("has_sortie"), M = helperCol("next_cutoff_sortie"), N = helperCol("next_val_sortie"),
+          Nx = helperCol("next_exec_sortie"), Np = helperCol("next_pub_sortie"), O = helperCol("next_cash_sortie");
+        const Q = helperCol("months_held");
+        const R = helperCol("pen_found");
+        const S = helperCol("kind");
+        const Tc = helperCol("raw");
+        const U1 = helperCol("max1"), V1 = helperCol("rate1"), W1 = helperCol("max2"), X1 = helperCol("rate2"),
+          Y1 = helperCol("max3"), Z1 = helperCol("rate3"), AA1 = helperCol("max4"), AB1 = helperCol("rate4"), AC1 = helperCol("rate5");
+        const AD1 = helperCol("rate_now");
 
-      setF(ws, `${Q}${r}`, `IF(${c}="","",IF(${c}>TODAY(),"FUTUR",DATEDIF(${c},TODAY(),"m")))`);
-      setF(ws, `${R}${r}`, `COUNTIF(${pen("A")},${b})`);
-      setF(ws, `${S}${r}`, `IF(${R}${r}=0,"inconnue",INDEX(${pen("C")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${Tc}${r}`, `IF(${R}${r}=0,"",INDEX(${pen("M")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${U1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("D")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${V1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("E")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${W1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("F")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${X1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("G")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${Y1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("H")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${Z1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("I")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${AA1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("J")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${AB1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("K")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${AC1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("L")},MATCH(${b},${pen("A")},0)))`);
-      setF(ws, `${AD1}${r}`, `IF(OR(${c}="",${Q}${r}="FUTUR"),"",_xlfn.IFS(${Q}${r}<${U1}${r},${V1}${r},${Q}${r}<${W1}${r},${X1}${r},${Q}${r}<${Y1}${r},${Z1}${r},${Q}${r}<${AA1}${r},${AB1}${r},TRUE(),${AC1}${r}))`);
+        setF(ws, `${L}${r}`, `COUNTIFS(${cal("A")},${b},${cal("C")},"Rachat")`);
+        setF(ws, `${M}${r}`, `IF(${L}${r}=0,"",IFERROR(_xlfn.MINIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},">="&TODAY()),""))`);
+        // VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS avec
+        // une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une reconstruction de
+        // clé texte + MATCH, plus fragile) — même mécanisme que ${M} ci-dessus, qui fonctionne de
+        // façon fiable. MINIFS ignore les cellules vides : si ce champ précis n'est pas renseigné
+        // dans la base pour cette échéance, MINIFS ne trouve aucune valeur numérique et renvoie 0
+        // (jamais une vraie erreur) — sans la vérification "=0" ci-dessous, Excel afficherait ce 0
+        // comme une date, "00/01/1900", au lieu de laisser la cellule vide.
+        const minifsField = (col) =>
+          `IF(${M}${r}="","",IFERROR(IF(_xlfn.MINIFS(${cal(col)},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},${M}${r})=0,"",` +
+          `_xlfn.MINIFS(${cal(col)},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},${M}${r})),""))`;
+        setF(ws, `${N}${r}`, minifsField("E"));
+        setF(ws, `${Nx}${r}`, minifsField("F"));
+        setF(ws, `${Np}${r}`, minifsField("G"));
+        setF(ws, `${O}${r}`, minifsField("H"));
 
-      // Colonnes visibles E..I : valeurs reprises telles quelles de la base (une par champ).
-      [["E", M], ["F", N], ["G", Nx], ["H", Np], ["I", O]].forEach(([col, helper]) => {
-        setF(ws, `${col}${r}`, `${helper}${r}`);
-        const cell = ws.getCell(`${col}${r}`);
-        cell.numFmt = "dd/mm/yyyy";
-        cell.font = dataFont;
-        cell.alignment = { horizontal: "center", vertical: "middle" };
+        setF(ws, `${Q}${r}`, `IF(${c}="","",IF(${c}>TODAY(),"FUTUR",DATEDIF(${c},TODAY(),"m")))`);
+        setF(ws, `${R}${r}`, `COUNTIF(${pen("A")},${b})`);
+        setF(ws, `${S}${r}`, `IF(${R}${r}=0,"inconnue",INDEX(${pen("C")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${Tc}${r}`, `IF(${R}${r}=0,"",INDEX(${pen("M")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${U1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("D")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${V1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("E")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${W1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("F")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${X1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("G")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${Y1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("H")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${Z1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("I")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${AA1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("J")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${AB1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("K")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${AC1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("L")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${AD1}${r}`, `IF(OR(${c}="",${Q}${r}="FUTUR"),"",_xlfn.IFS(${Q}${r}<${U1}${r},${V1}${r},${Q}${r}<${W1}${r},${X1}${r},${Q}${r}<${Y1}${r},${Z1}${r},${Q}${r}<${AA1}${r},${AB1}${r},TRUE(),${AC1}${r}))`);
+
+        // Colonnes visibles D..H : valeurs reprises telles quelles de la base (une par champ).
+        [["D", M], ["E", N], ["F", Nx], ["G", Np], ["H", O]].forEach(([col, helper]) => {
+          setF(ws, `${col}${r}`, `${helper}${r}`);
+          const cell = ws.getCell(`${col}${r}`);
+          cell.numFmt = "dd/mm/yyyy";
+          cell.font = dataFont;
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+        });
+
+        // Pénalité de sortie : vide dès qu'il n'y a rien d'actionnable à signaler — pas de
+        // pénalité prévue pour ce fonds (kind="aucune"), aucune pénalité renseignée dans la base
+        // (kind="inconnue", traité comme "pas de pénalité"), ou délai de pénalité dépassé. Un
+        // message n'apparaît que dans les cas où le conseiller doit agir : fonds fermé (sortie
+        // impossible hors cas exceptionnel), règle ambiguë à vérifier à la main, ou pénalité
+        // active à signaler au client.
+        setF(ws, `I${r}`,
+          `_xlfn.IFS(` +
+          `${S}${r}="ferme","FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds.",` +
+          `${S}${r}="manuel","À VÉRIFIER MANUELLEMENT : "&${Tc}${r},` +
+          `${S}${r}="aucune","",` +
+          `${S}${r}="inconnue","",` +
+          `${c}="","Saisir une date d'investissement pour statuer sur la pénalité.",` +
+          `${Q}${r}="FUTUR","Date d'investissement postérieure à aujourd'hui — vérifier la saisie.",` +
+          `${AD1}${r}>0,"CONCERNÉ : pénalité de "&${AD1}${r}&"% (détention "&${Q}${r}&" mois). "&${Tc}${r},` +
+          `TRUE(),"")`
+        );
+        const penCell = ws.getCell(`I${r}`);
+        penCell.font = dataFont;
+        penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+
+        ws.getRow(r).height = 60;
+        r += 1;
       });
 
-      // Pénalité de sortie : vide dès qu'il n'y a rien d'actionnable à signaler — pas de
-      // pénalité prévue pour ce fonds (kind="aucune"), aucune pénalité renseignée dans la base
-      // (kind="inconnue", traité comme "pas de pénalité"), ou délai de pénalité dépassé. Un
-      // message n'apparaît que dans les cas où le conseiller doit agir : fonds fermé (sortie
-      // impossible hors cas exceptionnel), règle ambiguë à vérifier à la main, ou pénalité
-      // active à signaler au client.
-      setF(ws, `J${r}`,
-        `_xlfn.IFS(` +
-        `${S}${r}="ferme","🔒 FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds.",` +
-        `${S}${r}="manuel","⚠️ À VÉRIFIER MANUELLEMENT : "&${Tc}${r},` +
-        `${S}${r}="aucune","",` +
-        `${S}${r}="inconnue","",` +
-        `${c}="","Saisir une date d'investissement pour statuer sur la pénalité.",` +
-        `${Q}${r}="FUTUR","Date d'investissement postérieure à aujourd'hui — vérifier la saisie.",` +
-        `${AD1}${r}>0,"⚠️ CONCERNÉ : pénalité de "&${AD1}${r}&"% (détention "&${Q}${r}&" mois). "&${Tc}${r},` +
-        `TRUE(),"")`
-      );
-      const penCell = ws.getCell(`J${r}`);
-      penCell.font = dataFont;
-      penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
-
-      ws.getRow(r).height = 45;
-      r += 1;
+      // Ligne vide (non bordée) entre 2 titulaires, pour que le contour du tableau ne referme
+      // qu'un seul titulaire à la fois, jamais les deux ensemble.
+      if (showOwnerHeadings && ownerIdx < ownerOrder.length - 1) r += 1;
     });
 
     applyPrintSetup(ws, r - 1, headers.length);
@@ -576,17 +622,120 @@
    * ligne unique de Consolidation ne peut représenter qu'un seul statut : la première trouvée par
    * MATCH — la répartition détaillée par titulaire reste disponible dans "Calendrier de sortie".
    */
+  /** Colonne du premier en-tête dont le texte correspond exactement (après trim) à `text`, ou
+   *  null si absent — pour repérer une colonne "connue" comme "Mouvements en cours" par son
+   *  intitulé plutôt que par une position codée en dur. */
+  function findColumnByHeaderText(ws, headerRow, text) {
+    const upper = Math.max(ws.columnCount || 0, ws.actualColumnCount || 0, 200);
+    for (let c = 1; c <= upper; c++) {
+      const v = ws.getCell(headerRow, c).value;
+      if (v !== null && v !== undefined && String(v).trim() === text) return c;
+    }
+    return null;
+  }
+
+  /** Dernière colonne du bloc fusionné (horizontalement) démarrant à `startCol` sur `row`. */
+  function mergedBlockEndColumn(ws, row, startCol) {
+    const cell = ws.getCell(row, startCol);
+    if (!cell.isMerged) return startCol;
+    const merges = (ws.model && ws.model.merges) || [];
+    let end = startCol;
+    merges.forEach((m) => {
+      const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(m);
+      if (!match) return;
+      const col1 = colNumOf(match[1]), row1 = Number(match[2]), col2 = colNumOf(match[3]), row2 = Number(match[4]);
+      if (row >= row1 && row <= row2 && startCol >= col1 && startCol <= col2) end = Math.max(end, col2);
+    });
+    return end;
+  }
+
+  /** Déplace tout un bloc de colonnes [fromStart..fromEnd] vers [toStart..], sur toutes les
+   *  lignes de la feuille : valeurs, styles, formats et fusions (jamais les formules elles-mêmes,
+   *  puisqu'aucune bibliothèque ExcelJS/openpyxl ne réécrit les références de colonnes lors d'un
+   *  déplacement — sans risque ici car ce bloc, tel qu'observé sur les fichiers réels, ne contient
+   *  que des valeurs statiques, jamais de formule). Utilisé pour repousser une colonne existante
+   *  (ex. "Mouvements en cours") et faire de la place aux 2 nouvelles colonnes. */
+  function shiftColumnBlock(ws, fromStart, fromEnd, toStart) {
+    if (toStart === fromStart) return;
+    const width = fromEnd - fromStart;
+    const maxRow = Math.max(ws.rowCount || 0, ws.actualRowCount || 0);
+
+    const merges = ((ws.model && ws.model.merges) || []).slice();
+    const movedMerges = [];
+    merges.forEach((m) => {
+      const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(m);
+      if (!match) return;
+      const col1 = colNumOf(match[1]), row1 = Number(match[2]), col2 = colNumOf(match[3]), row2 = Number(match[4]);
+      if (col1 >= fromStart && col2 <= fromEnd) movedMerges.push({ oldRange: m, row1, row2, col1, col2 });
+    });
+    movedMerges.forEach(({ oldRange }) => ws.unMergeCells(oldRange));
+
+    for (let r = 1; r <= maxRow; r++) {
+      for (let i = 0; i <= width; i++) {
+        const src = ws.getCell(r, fromStart + i);
+        const val = src.value;
+        const style = JSON.parse(JSON.stringify(src.style));
+        const numFmt = src.numFmt;
+        const dst = ws.getCell(r, toStart + i);
+        dst.value = val;
+        dst.style = style;
+        if (numFmt) dst.numFmt = numFmt;
+        src.value = null;
+        src.style = {};
+      }
+    }
+
+    for (let i = 0; i <= width; i++) {
+      const oldCol = ws.getColumn(fromStart + i);
+      const newCol = ws.getColumn(toStart + i);
+      if (oldCol.width) newCol.width = oldCol.width;
+    }
+
+    const shift = toStart - fromStart;
+    movedMerges.forEach(({ row1, row2, col1, col2 }) => {
+      ws.mergeCells(row1, col1 + shift, row2, col2 + shift);
+    });
+  }
+
+  /** Vrai si l'en-tête de cette colonne occupe 2 lignes fusionnées (headerRow:headerRow+1),
+   *  comme "Support"/"Dernière Valeur Liquidative" dans les fichiers Althos — pour aligner les 2
+   *  nouvelles colonnes sur le même bleu marine "en hauteur" que leurs voisines. */
+  function hasTwoRowHeader(ws, headerRow, col) {
+    const top = ws.getCell(headerRow, col);
+    const bottom = ws.getCell(headerRow + 1, col);
+    return !!(top.isMerged && bottom.isMerged && top.master && bottom.master && top.master.address === bottom.master.address);
+  }
+
   function addConsolidationColumns(srcWs, headerRow, totalCol, exitSheetName, firstDataRow, lastDataRow) {
     if (!lastDataRow || lastDataRow < firstDataRow) return; // aucun fonds retenu, rien à référencer
 
-    const lastCol = findLastHeaderColumn(srcWs, headerRow);
-    const cashCol = nextSafeColumn(srcWs, headerRow, lastCol + 1);
-    const penCol = nextSafeColumn(srcWs, headerRow, cashCol + 1);
+    // "Mouvements en cours" (si présente) est toujours la toute dernière colonne du tableau
+    // Consolidation, mais n'en fait pas vraiment partie : les 2 nouvelles colonnes doivent être
+    // collées juste après la dernière colonne réellement utile (ex. "Dernière Valeur
+    // Liquidative"), et "Mouvements en cours" repoussée de 2 colonnes vides après elles.
+    let cashCol, penCol;
+    const movCol = findColumnByHeaderText(srcWs, headerRow, "Mouvements en cours");
+    if (movCol) {
+      let coreLast = movCol - 1;
+      while (coreLast >= 1 && (srcWs.getCell(headerRow, coreLast).value === null || srcWs.getCell(headerRow, coreLast).value === undefined || String(srcWs.getCell(headerRow, coreLast).value).trim() === "")) {
+        coreLast -= 1;
+      }
+      cashCol = coreLast + 1;
+      penCol = coreLast + 2;
+      const movEnd = mergedBlockEndColumn(srcWs, headerRow, movCol);
+      const desiredMovStart = coreLast + 5; // cashCol, penCol, 2 colonnes vides, puis Mouvements en cours
+      if (desiredMovStart > movCol) shiftColumnBlock(srcWs, movCol, movEnd, desiredMovStart);
+    } else {
+      const lastCol = findLastHeaderColumn(srcWs, headerRow);
+      cashCol = nextSafeColumn(srcWs, headerRow, lastCol + 1);
+      penCol = nextSafeColumn(srcWs, headerRow, cashCol + 1);
+    }
 
     const headerStyle = cloneStyle(srcWs.getCell(headerRow, 1));
     const baseFontName = (headerStyle.font && headerStyle.font.name) || "Calibri";
     const baseFontSize = (headerStyle.font && headerStyle.font.size) || 10;
     const dataFont = { name: baseFontName, size: baseFontSize, bold: false };
+    const twoRowHeader = hasTwoRowHeader(srcWs, headerRow, 1);
 
     [[cashCol, "Rachat — cash reçu", 16], [penCol, "Pénalité de sortie", 46]].forEach(([col, label, width]) => {
       const cell = srcWs.getCell(headerRow, col);
@@ -594,11 +743,16 @@
       cell.style = JSON.parse(JSON.stringify(headerStyle));
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
       srcWs.getColumn(col).width = width;
+      if (twoRowHeader) {
+        const bottomCell = srcWs.getCell(headerRow + 1, col);
+        bottomCell.style = JSON.parse(JSON.stringify(headerStyle));
+        srcWs.mergeCells(headerRow, col, headerRow + 1, col);
+      }
     });
 
-    const isinRange = `'${exitSheetName}'!$C$${firstDataRow}:$C$${lastDataRow}`;
-    const cashRange = `'${exitSheetName}'!$I$${firstDataRow}:$I$${lastDataRow}`;
-    const penRange = `'${exitSheetName}'!$J$${firstDataRow}:$J$${lastDataRow}`;
+    const isinRange = `'${exitSheetName}'!$B$${firstDataRow}:$B$${lastDataRow}`;
+    const cashRange = `'${exitSheetName}'!$H$${firstDataRow}:$H$${lastDataRow}`;
+    const penRange = `'${exitSheetName}'!$I$${firstDataRow}:$I$${lastDataRow}`;
 
     const { fundRows } = classifyRows(srcWs, headerRow);
     fundRows.forEach((r) => {

@@ -100,6 +100,83 @@ def next_safe_column(ws, row, start):
     return c
 
 
+def find_column_by_header_text(ws, header_row, text):
+    """Colonne du premier en-tête dont le texte correspond exactement (après trim) à `text`, ou
+    None si absent — pour repérer une colonne "connue" comme "Mouvements en cours" par son
+    intitulé plutôt que par une position codée en dur."""
+    for c in range(1, ws.max_column + 1):
+        v = ws.cell(row=header_row, column=c).value
+        if v is not None and str(v).strip() == text:
+            return c
+    return None
+
+
+def merged_block_end_column(ws, row, start_col):
+    """Dernière colonne du bloc fusionné (horizontalement) démarrant à `start_col` sur `row`."""
+    end = start_col
+    for mc in ws.merged_cells.ranges:
+        if mc.min_row <= row <= mc.max_row and mc.min_col <= start_col <= mc.max_col:
+            end = max(end, mc.max_col)
+    return end
+
+
+def shift_column_block(ws, from_start, from_end, to_start):
+    """Déplace tout un bloc de colonnes [from_start..from_end] vers [to_start..], sur toutes les
+    lignes de la feuille : valeurs, styles, formats et fusions (jamais les formules elles-mêmes —
+    aucune bibliothèque ExcelJS/openpyxl ne réécrit les références de colonnes lors d'un
+    déplacement, mais sans risque ici puisque ce bloc, tel qu'observé sur les fichiers réels, ne
+    contient que des valeurs statiques, jamais de formule). Utilisé pour repousser une colonne
+    existante (ex. "Mouvements en cours") et faire de la place aux 2 nouvelles colonnes."""
+    if to_start == from_start:
+        return
+    width = from_end - from_start
+    max_row = ws.max_row
+    shift = to_start - from_start
+
+    moved_merges = [mc for mc in list(ws.merged_cells.ranges)
+                     if mc.min_col >= from_start and mc.max_col <= from_end]
+    for mc in moved_merges:
+        ws.unmerge_cells(str(mc))
+
+    for r in range(1, max_row + 1):
+        for i in range(width + 1):
+            src = ws.cell(row=r, column=from_start + i)
+            val = src.value
+            style = copy(src._style)
+            num_fmt = src.number_format
+            dst = ws.cell(row=r, column=to_start + i)
+            dst.value = val
+            dst._style = style
+            dst.number_format = num_fmt
+            ws._cells.pop((r, from_start + i), None)  # remet la cellule d'origine à l'état vierge
+
+    for i in range(width + 1):
+        old_letter = get_column_letter(from_start + i)
+        new_letter = get_column_letter(to_start + i)
+        if old_letter in ws.column_dimensions and ws.column_dimensions[old_letter].width:
+            ws.column_dimensions[new_letter].width = ws.column_dimensions[old_letter].width
+            del ws.column_dimensions[old_letter]
+
+    for mc in moved_merges:
+        ws.merge_cells(start_row=mc.min_row, start_column=mc.min_col + shift,
+                        end_row=mc.max_row, end_column=mc.max_col + shift)
+
+
+def has_two_row_header(ws, header_row, col):
+    """Vrai si l'en-tête de cette colonne occupe 2 lignes fusionnées (header_row:header_row+1),
+    comme "Support"/"Dernière Valeur Liquidative" dans les fichiers Althos — pour aligner les 2
+    nouvelles colonnes sur le même bleu marine "en hauteur" que leurs voisines."""
+    from openpyxl.cell.cell import MergedCell
+    if isinstance(ws.cell(row=header_row, column=col), MergedCell):
+        return False
+    if not isinstance(ws.cell(row=header_row + 1, column=col), MergedCell):
+        return False
+    for mc in ws.merged_cells.ranges:
+        if mc.min_row == header_row and mc.max_row == header_row + 1 and mc.min_col <= col <= mc.max_col:
+            return True
+    return False
+
+
 def classify_rows(ws, header_row):
     """Une ligne de catégorie (bandeau) est en gras + fond uni, sans ISIN en colonne B.
 
@@ -334,6 +411,34 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
                 continue
             selected.append({"isin": isin, "nom": nom, "category": category, "owner": owner})
 
+    # Regroupement par titulaire : un tableau complètement séparé par titulaire (Monsieur /
+    # Madame / société...), plutôt qu'une colonne "Titulaire" au milieu d'un tableau commun —
+    # pour que le conseiller voie d'un coup d'œil tout ce qui est détenu par chacun. L'ordre de
+    # ces titulaires suit l'ordre de leurs colonnes "Contrat" dans Consolidation (premier
+    # titulaire rencontré = premier affiché). Si le fichier n'a qu'un seul titulaire (pas de
+    # subdivision par contrat, owner_labels toujours ""), on garde un unique tableau, sans
+    # bandeau de titulaire.
+    owner_order = []
+    by_owner = {}
+    for item in selected:
+        key = item["owner"] or ""
+        if key not in by_owner:
+            by_owner[key] = []
+            owner_order.append(key)
+        by_owner[key].append(item)
+    show_owner_headings = len(owner_order) > 1 or (len(owner_order) == 1 and owner_order[0] != "")
+    # Style du bandeau de titulaire : repris tel quel de la ligne de Consolidation où figurent
+    # les libellés "Monsieur" / "Madame" / société (juste au-dessus de l'en-tête "Support") —
+    # même principe que pour les autres styles de cette feuille : jamais une couleur codée en dur.
+    owner_header_style = None
+    if show_owner_headings:
+        owner_row = header_row - 1
+        for c in range(3, total_col or 3):
+            v = src_ws.cell(row=owner_row, column=c).value
+            if v is not None and str(v).strip() != "":
+                owner_header_style = copy(src_ws.cell(row=owner_row, column=c)._style)
+                break
+
     # Présentation "à la Althos" : bandeau de titre + sous-titre daté (repris tel quel des lignes
     # 1 et 3 de Consolidation — même couleur, même police, même mise en italique), en-tête de
     # tableau dans le même bleu que Consolidation et le titre, bandeaux de catégorie en beige
@@ -365,7 +470,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     # le contour bleu de la zone d'impression en vue Normale.
     ws.sheet_view.view = "pageBreakPreview"
 
-    headers = ["Titulaire", "Fonds", "ISIN", "Date d'investissement",
+    headers = ["Fonds", "ISIN", "Date d'investissement",
                "Rachat — ordre avant", "Rachat — VL", "Rachat — exécuté",
                "Rachat — publié", "Rachat — cash reçu", "Pénalité de sortie"]
     HEADER_ROW_OUT = 5  # 1: titre, 2: (vide), 3: sous-titre daté, 4: (vide), 5: en-tête
@@ -390,7 +495,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         cell.border = grid_border
     ws.row_dimensions[HEADER_ROW_OUT].height = 22
 
-    widths = [14, 32, 14, 22, 22, 15, 19, 18, 20, 46]
+    widths = [32, 14, 22, 22, 15, 19, 18, 20, 46]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
 
@@ -408,115 +513,131 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         return ws, 0, len(fund_rows), None, None
 
     r = FIRST_DATA_ROW
-    current_category = object()  # sentinelle : force le 1er bandeau même si catégorie ""
-    for item in selected:
-        if category_style is not None and item["category"] != current_category:
-            current_category = item["category"]
-            cat_cell = ws.cell(row=r, column=1, value=current_category or "Autres fonds")
+    for owner_idx, owner_key in enumerate(owner_order):
+        if show_owner_headings:
+            heading_style = owner_header_style or header_style
+            heading_cell = ws.cell(row=r, column=1, value=owner_key or "Autres titulaires")
             for c in range(1, len(headers) + 1):
-                ws.cell(row=r, column=c)._style = copy(category_style)
-                ws.cell(row=r, column=c).border = grid_border
-            cat_cell.alignment = Alignment(vertical="center")
+                ws.cell(row=r, column=c)._style = copy(heading_style)
+            heading_cell.alignment = Alignment(horizontal="center", vertical="center")
             ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=len(headers))
             ws.row_dimensions[r].height = 20
             r += 1
 
-        for c in range(1, len(headers) + 1):
-            ws.cell(row=r, column=c).fill = white_fill
-            ws.cell(row=r, column=c).border = grid_border
+        current_category = object()  # sentinelle : force le 1er bandeau même si catégorie ""
+        for item in by_owner[owner_key]:
+            if category_style is not None and item["category"] != current_category:
+                current_category = item["category"]
+                cat_cell = ws.cell(row=r, column=1, value=current_category or "Autres fonds")
+                for c in range(1, len(headers) + 1):
+                    ws.cell(row=r, column=c)._style = copy(category_style)
+                    ws.cell(row=r, column=c).border = grid_border
+                cat_cell.alignment = Alignment(vertical="center")
+                ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=len(headers))
+                ws.row_dimensions[r].height = 20
+                r += 1
 
-        isin, nom, owner = item["isin"], item["nom"], item["owner"]
-        ws.cell(row=r, column=1, value=owner).font = data_font
-        ws.cell(row=r, column=2, value=nom).font = data_font
-        ws.cell(row=r, column=3, value=isin).font = data_font
-        for col in (1, 2, 3):
-            ws.cell(row=r, column=col).alignment = Alignment(vertical="center")
+            for c in range(1, len(headers) + 1):
+                ws.cell(row=r, column=c).fill = white_fill
+                ws.cell(row=r, column=c).border = grid_border
 
-        date_cell = ws.cell(row=r, column=4)
-        date_cell.number_format = "dd/mm/yyyy"
-        date_cell.font = data_font
+            isin, nom = item["isin"], item["nom"]
+            ws.cell(row=r, column=1, value=nom).font = data_font
+            ws.cell(row=r, column=2, value=isin).font = data_font
+            for col in (1, 2):
+                ws.cell(row=r, column=col).alignment = Alignment(vertical="center")
 
-        b = f'"{isin}"'
-        c = f"$D{r}"
+            date_cell = ws.cell(row=r, column=3)
+            date_cell.number_format = "dd/mm/yyyy"
+            date_cell.font = data_font
 
-        L, M, N = helper_col("has_sortie"), helper_col("next_cutoff_sortie"), helper_col("next_val_sortie")
-        Nx, Np, O = helper_col("next_exec_sortie"), helper_col("next_pub_sortie"), helper_col("next_cash_sortie")
-        Q = helper_col("months_held")
-        R = helper_col("pen_found")
-        S = helper_col("kind")
-        Tc = helper_col("raw")
-        U1, V1, W1, X1, Y1, Z1, AA1, AB1, AC1 = (helper_col("max1"), helper_col("rate1"), helper_col("max2"),
-                                                  helper_col("rate2"), helper_col("max3"), helper_col("rate3"),
-                                                  helper_col("max4"), helper_col("rate4"), helper_col("rate5"))
-        AD1 = helper_col("rate_now")
+            b = f'"{isin}"'
+            c = f"$C{r}"
 
-        ws[f"{L}{r}"] = f'=COUNTIFS({cal("A")},{b},{cal("C")},"Rachat")'
-        ws[f"{M}{r}"] = (f'=IF({L}{r}=0,"",IFERROR(_xlfn.MINIFS({cal("D")},'
-                          f'{cal("A")},{b},{cal("C")},"Rachat",'
-                          f'{cal("D")},">="&TODAY()),""))')
-        # VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS avec
-        # une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une reconstruction de
-        # clé texte + MATCH, plus fragile) — même mécanisme que {M} ci-dessus, qui fonctionne de
-        # façon fiable. MINIFS ignore les cellules vides : si ce champ précis n'est pas renseigné
-        # dans la base pour cette échéance, MINIFS ne trouve aucune valeur numérique et renvoie 0
-        # (jamais une vraie erreur) — sans la vérification "=0" ci-dessous, Excel afficherait ce 0
-        # comme une date, "00/01/1900", au lieu de laisser la cellule vide.
-        def minifs_field(col):
-            expr = f'_xlfn.MINIFS({cal(col)},{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r})'
-            return f'=IF({M}{r}="","",IFERROR(IF({expr}=0,"",{expr}),""))'
+            L, M, N = helper_col("has_sortie"), helper_col("next_cutoff_sortie"), helper_col("next_val_sortie")
+            Nx, Np, O = helper_col("next_exec_sortie"), helper_col("next_pub_sortie"), helper_col("next_cash_sortie")
+            Q = helper_col("months_held")
+            R = helper_col("pen_found")
+            S = helper_col("kind")
+            Tc = helper_col("raw")
+            U1, V1, W1, X1, Y1, Z1, AA1, AB1, AC1 = (helper_col("max1"), helper_col("rate1"), helper_col("max2"),
+                                                      helper_col("rate2"), helper_col("max3"), helper_col("rate3"),
+                                                      helper_col("max4"), helper_col("rate4"), helper_col("rate5"))
+            AD1 = helper_col("rate_now")
 
-        ws[f"{N}{r}"] = minifs_field("E")
-        ws[f"{Nx}{r}"] = minifs_field("F")
-        ws[f"{Np}{r}"] = minifs_field("G")
-        ws[f"{O}{r}"] = minifs_field("H")
+            ws[f"{L}{r}"] = f'=COUNTIFS({cal("A")},{b},{cal("C")},"Rachat")'
+            ws[f"{M}{r}"] = (f'=IF({L}{r}=0,"",IFERROR(_xlfn.MINIFS({cal("D")},'
+                              f'{cal("A")},{b},{cal("C")},"Rachat",'
+                              f'{cal("D")},">="&TODAY()),""))')
+            # VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS
+            # avec une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une
+            # reconstruction de clé texte + MATCH, plus fragile) — même mécanisme que {M}
+            # ci-dessus, qui fonctionne de façon fiable. MINIFS ignore les cellules vides : si ce
+            # champ précis n'est pas renseigné dans la base pour cette échéance, MINIFS ne trouve
+            # aucune valeur numérique et renvoie 0 (jamais une vraie erreur) — sans la
+            # vérification "=0" ci-dessous, Excel afficherait ce 0 comme une date, "00/01/1900",
+            # au lieu de laisser la cellule vide.
+            def minifs_field(col):
+                expr = f'_xlfn.MINIFS({cal(col)},{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},{M}{r})'
+                return f'=IF({M}{r}="","",IFERROR(IF({expr}=0,"",{expr}),""))'
 
-        ws[f"{Q}{r}"] = f'=IF({c}="","",IF({c}>TODAY(),"FUTUR",DATEDIF({c},TODAY(),"m")))'
-        ws[f"{R}{r}"] = f'=COUNTIF({pen("A")},{b})'
-        ws[f"{S}{r}"] = f'=IF({R}{r}=0,"inconnue",INDEX({pen("C")},MATCH({b},{pen("A")},0)))'
-        ws[f"{Tc}{r}"] = f'=IF({R}{r}=0,"",INDEX({pen("M")},MATCH({b},{pen("A")},0)))'
-        ws[f"{U1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("D")},MATCH({b},{pen("A")},0)))'
-        ws[f"{V1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("E")},MATCH({b},{pen("A")},0)))'
-        ws[f"{W1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("F")},MATCH({b},{pen("A")},0)))'
-        ws[f"{X1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("G")},MATCH({b},{pen("A")},0)))'
-        ws[f"{Y1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("H")},MATCH({b},{pen("A")},0)))'
-        ws[f"{Z1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("I")},MATCH({b},{pen("A")},0)))'
-        ws[f"{AA1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("J")},MATCH({b},{pen("A")},0)))'
-        ws[f"{AB1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("K")},MATCH({b},{pen("A")},0)))'
-        ws[f"{AC1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("L")},MATCH({b},{pen("A")},0)))'
-        ws[f"{AD1}{r}"] = (f'=IF(OR({c}="",{Q}{r}="FUTUR"),"",_xlfn.IFS({Q}{r}<{U1}{r},{V1}{r},{Q}{r}<{W1}{r},{X1}{r},'
-                            f'{Q}{r}<{Y1}{r},{Z1}{r},{Q}{r}<{AA1}{r},{AB1}{r},TRUE(),{AC1}{r}))')
+            ws[f"{N}{r}"] = minifs_field("E")
+            ws[f"{Nx}{r}"] = minifs_field("F")
+            ws[f"{Np}{r}"] = minifs_field("G")
+            ws[f"{O}{r}"] = minifs_field("H")
 
-        # Colonnes visibles E..I : valeurs reprises telles quelles de la base (une par champ).
-        for col_letter, helper in (("E", M), ("F", N), ("G", Nx), ("H", Np), ("I", O)):
-            cell = ws[f"{col_letter}{r}"]
-            cell.value = f"={helper}{r}"
-            cell.number_format = "dd/mm/yyyy"
-            cell.font = data_font
-            cell.alignment = Alignment(horizontal="center", vertical="center")
+            ws[f"{Q}{r}"] = f'=IF({c}="","",IF({c}>TODAY(),"FUTUR",DATEDIF({c},TODAY(),"m")))'
+            ws[f"{R}{r}"] = f'=COUNTIF({pen("A")},{b})'
+            ws[f"{S}{r}"] = f'=IF({R}{r}=0,"inconnue",INDEX({pen("C")},MATCH({b},{pen("A")},0)))'
+            ws[f"{Tc}{r}"] = f'=IF({R}{r}=0,"",INDEX({pen("M")},MATCH({b},{pen("A")},0)))'
+            ws[f"{U1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("D")},MATCH({b},{pen("A")},0)))'
+            ws[f"{V1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("E")},MATCH({b},{pen("A")},0)))'
+            ws[f"{W1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("F")},MATCH({b},{pen("A")},0)))'
+            ws[f"{X1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("G")},MATCH({b},{pen("A")},0)))'
+            ws[f"{Y1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("H")},MATCH({b},{pen("A")},0)))'
+            ws[f"{Z1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("I")},MATCH({b},{pen("A")},0)))'
+            ws[f"{AA1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("J")},MATCH({b},{pen("A")},0)))'
+            ws[f"{AB1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("K")},MATCH({b},{pen("A")},0)))'
+            ws[f"{AC1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("L")},MATCH({b},{pen("A")},0)))'
+            ws[f"{AD1}{r}"] = (f'=IF(OR({c}="",{Q}{r}="FUTUR"),"",_xlfn.IFS({Q}{r}<{U1}{r},{V1}{r},{Q}{r}<{W1}{r},{X1}{r},'
+                                f'{Q}{r}<{Y1}{r},{Z1}{r},{Q}{r}<{AA1}{r},{AB1}{r},TRUE(),{AC1}{r}))')
 
-        # Pénalité de sortie : vide dès qu'il n'y a rien d'actionnable à signaler — pas de
-        # pénalité prévue pour ce fonds (kind="aucune"), aucune pénalité renseignée dans la base
-        # (kind="inconnue", traité comme "pas de pénalité"), ou délai de pénalité dépassé. Un
-        # message n'apparaît que dans les cas où le conseiller doit agir : fonds fermé (sortie
-        # impossible hors cas exceptionnel), règle ambiguë à vérifier à la main, ou pénalité
-        # active à signaler au client.
-        ws[f"J{r}"] = (
-            f'=_xlfn.IFS('
-            f'{S}{r}="ferme","🔒 FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds.",'
-            f'{S}{r}="manuel","⚠️ À VÉRIFIER MANUELLEMENT : "&{Tc}{r},'
-            f'{S}{r}="aucune","",'
-            f'{S}{r}="inconnue","",'
-            f'{c}="","Saisir une date d\'investissement pour statuer sur la pénalité.",'
-            f'{Q}{r}="FUTUR","Date d\'investissement postérieure à aujourd\'hui — vérifier la saisie.",'
-            f'{AD1}{r}>0,"⚠️ CONCERNÉ : pénalité de "&{AD1}{r}&"% (détention "&{Q}{r}&" mois). "&{Tc}{r},'
-            f'TRUE(),"")'
-        )
-        pen_cell = ws[f"J{r}"]
-        pen_cell.font = data_font
-        pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            # Colonnes visibles D..H : valeurs reprises telles quelles de la base (une par champ).
+            for col_letter, helper in (("D", M), ("E", N), ("F", Nx), ("G", Np), ("H", O)):
+                cell = ws[f"{col_letter}{r}"]
+                cell.value = f"={helper}{r}"
+                cell.number_format = "dd/mm/yyyy"
+                cell.font = data_font
+                cell.alignment = Alignment(horizontal="center", vertical="center")
 
-        ws.row_dimensions[r].height = 45
-        r += 1
+            # Pénalité de sortie : vide dès qu'il n'y a rien d'actionnable à signaler — pas de
+            # pénalité prévue pour ce fonds (kind="aucune"), aucune pénalité renseignée dans la
+            # base (kind="inconnue", traité comme "pas de pénalité"), ou délai de pénalité
+            # dépassé. Un message n'apparaît que dans les cas où le conseiller doit agir : fonds
+            # fermé (sortie impossible hors cas exceptionnel), règle ambiguë à vérifier à la
+            # main, ou pénalité active à signaler au client.
+            ws[f"I{r}"] = (
+                f'=_xlfn.IFS('
+                f'{S}{r}="ferme","FONDS FERMÉ — sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds.",'
+                f'{S}{r}="manuel","À VÉRIFIER MANUELLEMENT : "&{Tc}{r},'
+                f'{S}{r}="aucune","",'
+                f'{S}{r}="inconnue","",'
+                f'{c}="","Saisir une date d\'investissement pour statuer sur la pénalité.",'
+                f'{Q}{r}="FUTUR","Date d\'investissement postérieure à aujourd\'hui — vérifier la saisie.",'
+                f'{AD1}{r}>0,"CONCERNÉ : pénalité de "&{AD1}{r}&"% (détention "&{Q}{r}&" mois). "&{Tc}{r},'
+                f'TRUE(),"")'
+            )
+            pen_cell = ws[f"I{r}"]
+            pen_cell.font = data_font
+            pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+            ws.row_dimensions[r].height = 60
+            r += 1
+
+        # Ligne vide (non bordée) entre 2 titulaires, pour que le contour du tableau ne referme
+        # qu'un seul titulaire à la fois, jamais les deux ensemble.
+        if show_owner_headings and owner_idx < len(owner_order) - 1:
+            r += 1
 
     apply_print_setup(ws, r - 1, len(headers))
     return ws, len(selected), len(fund_rows), FIRST_DATA_ROW, r - 1
@@ -546,23 +667,46 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     if not last_data_row or last_data_row < first_data_row:
         return  # aucun fonds retenu, rien à référencer
 
-    last_col = find_last_header_column(src_ws, header_row)
-    cash_col = next_safe_column(src_ws, header_row, last_col + 1)
-    pen_col = next_safe_column(src_ws, header_row, cash_col + 1)
+    # "Mouvements en cours" (si présente) est toujours la toute dernière colonne du tableau
+    # Consolidation, mais n'en fait pas vraiment partie : les 2 nouvelles colonnes doivent être
+    # collées juste après la dernière colonne réellement utile (ex. "Dernière Valeur
+    # Liquidative"), et "Mouvements en cours" repoussée de 2 colonnes vides après elles.
+    mov_col = find_column_by_header_text(src_ws, header_row, "Mouvements en cours")
+    if mov_col:
+        core_last = mov_col - 1
+        while core_last >= 1:
+            v = src_ws.cell(row=header_row, column=core_last).value
+            if v is not None and str(v).strip() != "":
+                break
+            core_last -= 1
+        cash_col = core_last + 1
+        pen_col = core_last + 2
+        mov_end = merged_block_end_column(src_ws, header_row, mov_col)
+        desired_mov_start = core_last + 5  # cash_col, pen_col, 2 colonnes vides, puis Mouvements en cours
+        if desired_mov_start > mov_col:
+            shift_column_block(src_ws, mov_col, mov_end, desired_mov_start)
+    else:
+        last_col = find_last_header_column(src_ws, header_row)
+        cash_col = next_safe_column(src_ws, header_row, last_col + 1)
+        pen_col = next_safe_column(src_ws, header_row, cash_col + 1)
 
     header_style = copy(src_ws.cell(row=header_row, column=1)._style)
     header_font = src_ws.cell(row=header_row, column=1).font
     data_font = Font(name=header_font.name, size=header_font.size, bold=False)
+    two_row_header = has_two_row_header(src_ws, header_row, 1)
 
     for col, label, width in ((cash_col, "Rachat — cash reçu", 16), (pen_col, "Pénalité de sortie", 46)):
         cell = src_ws.cell(row=header_row, column=col, value=label)
         cell._style = copy(header_style)
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         src_ws.column_dimensions[get_column_letter(col)].width = width
+        if two_row_header:
+            src_ws.cell(row=header_row + 1, column=col)._style = copy(header_style)
+            src_ws.merge_cells(start_row=header_row, start_column=col, end_row=header_row + 1, end_column=col)
 
-    isin_range = f"'{exit_sheet_name}'!$C${first_data_row}:$C${last_data_row}"
-    cash_range = f"'{exit_sheet_name}'!$I${first_data_row}:$I${last_data_row}"
-    pen_range = f"'{exit_sheet_name}'!$J${first_data_row}:$J${last_data_row}"
+    isin_range = f"'{exit_sheet_name}'!$B${first_data_row}:$B${last_data_row}"
+    cash_range = f"'{exit_sheet_name}'!$H${first_data_row}:$H${last_data_row}"
+    pen_range = f"'{exit_sheet_name}'!$I${first_data_row}:$I${last_data_row}"
 
     _, fund_rows, _ = classify_rows(src_ws, header_row)
     for r in fund_rows:

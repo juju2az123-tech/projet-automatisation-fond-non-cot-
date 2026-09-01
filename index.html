@@ -11491,11 +11491,11 @@ window.FUNDS_DATA = {
       return '<div class="status-box">Pénalité de sortie non renseignée dans la base — vérifier la notice / DICI du fonds.</div>';
     }
     if(pen.kind === "ferme"){
-      return '<div class="status-box danger"><div class="line1">🔒 Fonds fermé</div>' +
+      return '<div class="status-box danger"><div class="line1">Fonds fermé</div>' +
         '<div class="line2">Sortie non disponible (sauf cas exceptionnel prévu au règlement, ex. décès, invalidité). Vérifier le DICI du fonds.</div></div>';
     }
     if(pen.kind === "manuel"){
-      return '<div class="status-box warn"><div class="line1">⚠️ À vérifier manuellement</div>' +
+      return '<div class="status-box warn"><div class="line1">À vérifier manuellement</div>' +
         '<span class="raw">' + escapeHtml(pen.raw) + '</span></div>';
     }
     if(pen.kind === "aucune"){
@@ -11530,7 +11530,7 @@ window.FUNDS_DATA = {
       if(monthsHeld < t0.maxMonths){
         var remaining = t0.maxMonths - monthsHeld;
         return '<div class="status-box danger">' +
-          '<div class="line1">⚠️ Concerné : pénalité de ' + t0.rate + '%' + softLabel + '</div>' +
+          '<div class="line1">Concerné : pénalité de ' + t0.rate + '%' + softLabel + '</div>' +
           '<div class="line2">Détention : ' + monthsHeld + ' mois / seuil ' + t0.maxMonths + ' mois (encore ' + remaining + ' mois)</div>' +
           '<span class="raw">' + escapeHtml(pen.raw) + '</span></div>';
       } else {
@@ -11544,7 +11544,7 @@ window.FUNDS_DATA = {
     if(pen.kind === "degressif"){
       if(tier && tier.rate > 0){
         return '<div class="status-box danger">' +
-          '<div class="line1">⚠️ Concerné : pénalité dégressive de ' + tier.rate + '%</div>' +
+          '<div class="line1">Concerné : pénalité dégressive de ' + tier.rate + '%</div>' +
           '<div class="line2">Détention : ' + monthsHeld + ' mois — palier ' + tier.minMonths + '-' + (tier.maxMonths!=null?tier.maxMonths:"∞") + ' mois</div>' +
           '<span class="raw">' + escapeHtml(pen.raw) + '</span></div>';
       } else {

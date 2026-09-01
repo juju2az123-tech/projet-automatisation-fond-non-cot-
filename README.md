@@ -34,54 +34,62 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    lesquels un **calendrier de rachat (sortie) officiel est connu** dans la base Althos — pas la
    liste complète des fonds de la consolidation, pas les fonds cotés, pas les fonds non détenus,
    pas les fonds dont seul le calendrier de souscription est connu. Pour chaque fonds retenu :
-   `Titulaire` (Monsieur / Madame / société... — voir plus bas), `Fonds`, `ISIN`,
-   `Date d'investissement` (à saisir), `Rachat — ordre avant`, `Rachat — VL`, `Rachat — exécuté`,
-   `Rachat — publié`, `Rachat — cash reçu` (les 5 dates telles quelles dans la base, pour
-   l'échéance de rachat la plus proche à partir d'aujourd'hui), `Pénalité de sortie` (vide si le
-   délai de pénalité est dépassé, sinon un message explicite). Si aucun fonds détenu n'a de
-   calendrier de rachat connu, la feuille l'indique clairement au lieu d'un tableau vide.
+   `Fonds`, `ISIN`, `Date d'investissement` (à saisir), `Rachat — ordre avant`, `Rachat — VL`,
+   `Rachat — exécuté`, `Rachat — publié`, `Rachat — cash reçu` (les 5 dates telles quelles dans la
+   base, pour l'échéance de rachat la plus proche à partir d'aujourd'hui), `Pénalité de sortie`
+   (vide si le délai de pénalité est dépassé, sinon un message explicite, sans icône). Si aucun
+   fonds détenu n'a de calendrier de rachat connu, la feuille l'indique clairement au lieu d'un
+   tableau vide.
+
+   **Un tableau complètement séparé par titulaire** : quand la Consolidation subdivise les
+   contrats par titulaire (ligne juste au-dessus de l'en-tête « Support », ex. « Monsieur » /
+   « Madame » / un prénom / une société), chaque titulaire obtient son propre tableau sur la
+   feuille (bandeau à son nom, puis ses catégories, puis ses fonds), plutôt qu'une colonne
+   « Titulaire » mélangeant tout le monde — pour que le conseiller voie d'un coup d'œil tout ce
+   qui est détenu par chacun. Un même fonds détenu à la fois par Monsieur ET Madame apparaît donc
+   dans les 2 tableaux, chacun avec sa propre date d'investissement et son propre statut de
+   pénalité. Une ligne vide (non bordée) sépare 2 tableaux consécutifs, pour que le contour ne
+   referme jamais deux titulaires ensemble. Un seul tableau (sans bandeau de titulaire) si le
+   fichier ne subdivise pas les contrats (client à titulaire unique).
 
    La présentation reprend celle de la Consolidation elle-même : un bandeau de titre centré
    « Calendrier des délais de sortie » (même bleu, même police que le titre de Consolidation),
    un sous-titre daté en italique juste en dessous (date du jour au format jj/mm/aaaa, même style
-   que le sous-titre de Consolidation), un en-tête de tableau dans ce même bleu, des bandeaux de
-   catégorie dans la couleur des catégories de Consolidation, les fonds sur fond blanc, et un
-   quadrillage dont la couleur est reprise telle quelle de la bordure déjà utilisée par
-   Consolidation (pas une couleur codée en dur : elle dépend du thème propre à chaque classeur,
-   donc peut être beige, bleue, ou autre selon le fichier). Le quadrillage Excel par défaut est
-   désactivé, comme sur Consolidation, pour un fond bien blanc. Police uniforme sur toute la
-   feuille (celle utilisée par la Consolidation, pas un choix arbitraire), et colonnes
-   dimensionnées pour que chaque en-tête tienne sur une seule ligne. La zone d'impression est
-   définie sur tout le tableau généré, en orientation paysage et mise à l'échelle sur une page en
-   largeur (comme sur Consolidation) — imprimer ou exporter en PDF depuis cette feuille donne donc
-   directement un rendu propre, sans réglage manuel. La feuille s'ouvre aussi en vue « aperçu des
-   sauts de page » (comme Consolidation), ce qui affiche automatiquement le contour bleu de la
-   zone d'impression dès l'ouverture, sans manipulation.
-
-   **Colonne Titulaire** : quand la Consolidation subdivise les contrats par titulaire (ligne
-   juste au-dessus de l'en-tête « Support », ex. « Monsieur » / « Madame » / un prénom / une
-   société), le fonds est relié au(x) titulaire(s) qui le détiennent réellement. Si un même fonds
-   est détenu à la fois par exemple via le contrat de Monsieur ET celui de Madame, il apparaît
-   sur **une ligne par titulaire** (chacune avec sa propre date d'investissement et son propre
-   statut de pénalité, puisqu'ils peuvent différer). La colonne reste vide si le fichier ne
-   subdivise pas les contrats par titulaire (client à titulaire unique).
+   que le sous-titre de Consolidation), un bandeau par titulaire repris de la ligne où
+   Consolidation indique déjà « Monsieur »/« Madame »/société, un en-tête de tableau dans le même
+   bleu que le titre, des bandeaux de catégorie dans la couleur des catégories de Consolidation,
+   les fonds sur fond blanc, et un quadrillage dont la couleur est reprise telle quelle de la
+   bordure déjà utilisée par Consolidation (pas une couleur codée en dur : elle dépend du thème
+   propre à chaque classeur, donc peut être beige, bleue, ou autre selon le fichier). Le
+   quadrillage Excel par défaut est désactivé, comme sur Consolidation, pour un fond bien blanc.
+   Police uniforme sur toute la feuille (celle utilisée par la Consolidation, pas un choix
+   arbitraire), et colonnes dimensionnées pour que chaque en-tête tienne sur une seule ligne. La
+   zone d'impression est définie sur tout le tableau généré, en orientation paysage et mise à
+   l'échelle sur une page en largeur (comme sur Consolidation) — imprimer ou exporter en PDF
+   depuis cette feuille donne donc directement un rendu propre, sans réglage manuel. La feuille
+   s'ouvre aussi en vue « aperçu des sauts de page » (comme Consolidation), ce qui affiche
+   automatiquement le contour bleu de la zone d'impression dès l'ouverture, sans manipulation.
 
    **Fonds fermés** : certains fonds n'acceptent plus aucun rachat (hors cas exceptionnel prévu
    au règlement, ex. décès, invalidité) — la base Althos les marque « fond fermé ». Ces fonds sont
    retenus dans la feuille **même sans calendrier de rachat**, avec un message explicite
-   « 🔒 FONDS FERMÉ — sortie non disponible... » dans la colonne Pénalité de sortie, pour que le
+   « FONDS FERMÉ — sortie non disponible... » dans la colonne Pénalité de sortie, pour que le
    conseiller ne les découvre pas au moment où le client demande à sortir.
 
-   **La feuille Consolidation elle-même est aussi complétée**, avec 2 colonnes ajoutées à la
-   suite de ses colonnes existantes (jamais au milieu — la dernière colonne utilisée est détectée
-   automatiquement, en tenant compte des cellules fusionnées pour ne jamais écraser un intitulé
-   existant) : `Rachat — cash reçu` et `Pénalité de sortie`. Ce sont des formules qui vont chercher
-   la valeur déjà calculée dans « Calendrier de sortie » pour le même ISIN — **la même information
-   dans les 2 pages**, jamais recalculée séparément — pour que le conseiller ait l'essentiel sous
-   les yeux sans changer d'onglet. Rempli uniquement pour les fonds réellement détenus (même filtre
-   « montant non nul » que « Calendrier de sortie »). Si un même fonds est détenu via plusieurs
-   titulaires (donc plusieurs lignes dans « Calendrier de sortie »), la ligne unique de
-   Consolidation reprend la première trouvée ; le détail par titulaire reste dans l'autre feuille.
+   **La feuille Consolidation elle-même est aussi complétée**, avec 2 colonnes `Rachat — cash
+   reçu` et `Pénalité de sortie`, en formule vers la valeur déjà calculée dans « Calendrier de
+   sortie » pour le même ISIN — **la même information dans les 2 pages**, jamais recalculée
+   séparément — pour que le conseiller ait l'essentiel sous les yeux sans changer d'onglet. Elles
+   sont ajoutées collées juste après la dernière colonne réellement utile du tableau (ex.
+   « Dernière Valeur Liquidative ») ; si une colonne « Mouvements en cours » existe déjà tout à la
+   fin du tableau (toujours en dernière position), elle est repoussée de 2 colonnes vides après
+   les 2 nouvelles, plutôt que les nouvelles colonnes n'atterrissent après elle. Leur en-tête
+   occupe 2 lignes fusionnées comme leurs voisines (« Dernière Valeur Liquidative », etc.) quand
+   la Consolidation utilise elle-même cette mise en page, pour un bleu marine bien aligné en
+   hauteur. Rempli uniquement pour les fonds réellement détenus (même filtre « montant non nul »
+   que « Calendrier de sortie »). Si un même fonds est détenu via plusieurs titulaires (donc
+   plusieurs lignes dans « Calendrier de sortie »), la ligne unique de Consolidation reprend la
+   première trouvée ; le détail par titulaire reste dans l'autre feuille.
 3. **Si des fonds détenus ont une pénalité de sortie qui dépend d'une date d'investissement**
    (règle à seuil, soft lock-up ou dégressive), la page affiche directement une liste de ces
    fonds avec un champ de saisie par fonds — le conseiller renseigne les dates connues sans
@@ -226,7 +234,7 @@ structurée par `parse_penalite()` dans `scripts/build_data.py` :
 | `degressif` | « Pénalité dégressive : 0-18 mois 7,5% · 18-36 mois 5% · ... » | Palier applicable déterminé selon la détention ; 0% = vide (non concerné) |
 | `manuel` | Formulations ambiguës ou taux multiples selon la part détenue (ex. Hg Fusion) | **Aucun calcul automatique** — le texte brut est affiché avec un avertissement « à vérifier manuellement » |
 | `inconnue` | Pas de texte renseigné dans la base | Cellule **vide** — pas de pénalité renseignée dans la base équivaut à pas de pénalité |
-| `ferme` | « fond fermé » (détecté en priorité sur toute autre mention dans le même texte) | Fonds retenu même sans calendrier de rachat, avec le message « 🔒 FONDS FERMÉ — sortie non disponible... » — aucune sortie possible hors cas exceptionnel prévu au règlement |
+| `ferme` | « fond fermé » (détecté en priorité sur toute autre mention dans le même texte) | Fonds retenu même sans calendrier de rachat, avec le message « FONDS FERMÉ — sortie non disponible... » — aucune sortie possible hors cas exceptionnel prévu au règlement |
 
 Seuls les fonds `seuil` / `soft` / `degressif` ont une pénalité qui dépend de la date
 d'investissement : ce sont eux, et eux seuls, que la page de dépôt automatisé (voir plus haut)
@@ -269,7 +277,6 @@ la feuille `Consolidation`.
 
 | Colonne | Contenu |
 |---|---|
-| Titulaire | Contrat détenteur (Monsieur / Madame / société...), lu au-dessus de l'en-tête « Support » ; vide si le fichier n'a qu'un seul titulaire |
 | Fonds / ISIN | Nom et ISIN du fonds retenu |
 | Date d'investissement | 🟡 à saisir par le conseiller |
 | Rachat — ordre avant | Date de cut-off de la prochaine échéance de rachat (à partir d'aujourd'hui) |
@@ -279,16 +286,22 @@ la feuille `Consolidation`.
 | Rachat — cash reçu | Date de règlement / réception du cash |
 | Pénalité de sortie | Vide dès qu'il n'y a rien à signaler (aucune pénalité prévue, non renseignée dans la base, ou délai dépassé) ; message si concerné par une pénalité active, si la règle est ambiguë (à vérifier manuellement), ou si le fonds est fermé (sortie non disponible) |
 
-Si aucun fonds détenu n'a de calendrier de rachat connu (ni fonds fermé), la feuille l'indique
-clairement au lieu d'un tableau vide. Un même fonds détenu via plusieurs titulaires (ex. Monsieur
-ET Madame, chacun via son propre contrat) apparaît sur une ligne par titulaire. Comme dans
-`ajout-calendrier-sortie.html`, la feuille `Consolidation` reçoit aussi 2 colonnes ajoutées à la
-suite de ses colonnes existantes (`Rachat — cash reçu`, `Pénalité de sortie`), en formule vers
-« Calendrier de sortie » pour la même information dans les 2 pages. Le script Python n'a pas
-d'équivalent au formulaire de saisie de dates dans le navigateur (voir plus haut) : les dates s'y
-saisissent directement dans le fichier Excel généré, comme avant. La présentation (bandeaux de
-catégorie beige, en-tête coloré, police) reprend celle de la feuille Consolidation — voir la
-section dédiée à `ajout-calendrier-sortie.html` plus haut pour le détail.
+Il n'y a pas de colonne « Titulaire » : quand la Consolidation subdivise les contrats par
+titulaire (Monsieur / Madame / société...), chaque titulaire obtient son **propre tableau séparé**
+sur la feuille (bandeau à son nom, puis ses catégories, puis ses fonds), pas une colonne au milieu
+d'un tableau commun — un même fonds détenu à la fois par Monsieur ET Madame apparaît donc dans les
+2 tableaux, chacun avec sa propre date d'investissement et son propre statut de pénalité. Un seul
+tableau (sans bandeau) si le fichier ne subdivise pas les contrats (client à titulaire unique). Si
+aucun fonds détenu n'a de calendrier de rachat connu (ni fonds fermé), la feuille l'indique
+clairement au lieu d'un tableau vide. Comme dans `ajout-calendrier-sortie.html`, la feuille
+`Consolidation` reçoit aussi 2 colonnes (`Rachat — cash reçu`, `Pénalité de sortie`) collées juste
+après sa dernière colonne réellement utile (une colonne « Mouvements en cours » existante, toujours
+en dernière position, est repoussée de 2 colonnes vides après elles plutôt que d'être dépassée), en
+formule vers « Calendrier de sortie » pour la même information dans les 2 pages. Le script Python
+n'a pas d'équivalent au formulaire de saisie de dates dans le navigateur (voir plus haut) : les
+dates s'y saisissent directement dans le fichier Excel généré, comme avant. La présentation
+(bandeaux de catégorie beige, en-tête coloré, police) reprend celle de la feuille Consolidation —
+voir la section dédiée à `ajout-calendrier-sortie.html` plus haut pour le détail.
 
 ### Générer / régénérer la feuille
 
