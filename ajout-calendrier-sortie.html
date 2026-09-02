@@ -11925,7 +11925,7 @@ window.FUNDS_DATA = {
     }
   }
 
-  function addConsolidationColumns(srcWs, headerRow, totalCol, exitSheetName, firstDataRow, lastDataRow, fundsByIsin) {
+  function addConsolidationColumns(srcWs, headerRow, totalCol, exitSheetName, firstDataRow, lastDataRow, fundsByIsin, isSimulating) {
     if (!lastDataRow || lastDataRow < firstDataRow) return; // aucun fonds retenu, rien à référencer
 
     // "Mouvements en cours" (si présente) est toujours la toute dernière colonne du tableau
@@ -11958,7 +11958,6 @@ window.FUNDS_DATA = {
     const twoRowHeader = hasTwoRowHeader(srcWs, headerRow, 1);
     const gridBorder = buildGridBorder(srcWs, headerRow);
     const PENALTY_COL_WIDTH = 63; // même largeur que sur "Calendrier de sortie", pour un rendu cohérent
-    const CHARS_PER_LINE = Math.round(PENALTY_COL_WIDTH * 0.55); // cf. commentaire dans buildExitSheet
 
     [[cashCol, "Rachat — cash reçu", 16], [penCol, "Pénalité de sortie", PENALTY_COL_WIDTH]].forEach(([col, label, width]) => {
       const cell = srcWs.getCell(headerRow, col);
@@ -11979,6 +11978,22 @@ window.FUNDS_DATA = {
         srcWs.mergeCells(headerRow, col, headerRow + 1, col);
       }
     });
+
+    // Bandeau "Si Date de Retrait Exécuté : XX/XX/XXXX", juste au-dessus des 2 nouvelles colonnes
+    // (même ligne que les libellés de regroupement par contrat déjà présents sur cette même
+    // ligne, ex. "SC DO...", "WE... Grégory") — même formule que sur "Calendrier de sortie",
+    // référencée dans l'autre feuille pour rester la même date partout dans le classeur.
+    if (isSimulating) {
+      const RD = helperCol("ref_date");
+      const bannerRow = headerRow - 1;
+      setF(srcWs, `${colLetter(cashCol)}${bannerRow}`,
+        `"Si Date de Retrait Exécuté : "&TEXT('${exitSheetName}'!${RD}$1,"dd/mm/yyyy")`);
+      [cashCol, penCol].forEach((col) => {
+        srcWs.getCell(bannerRow, col).style = JSON.parse(JSON.stringify(headerStyle));
+      });
+      srcWs.mergeCells(bannerRow, cashCol, bannerRow, penCol);
+      srcWs.getCell(bannerRow, cashCol).alignment = { horizontal: "center", vertical: "middle" };
+    }
 
     const isinRange = `'${exitSheetName}'!$B$${firstDataRow}:$B$${lastDataRow}`;
     const cashRange = `'${exitSheetName}'!$H$${firstDataRow}:$H$${lastDataRow}`;
@@ -12054,13 +12069,11 @@ window.FUNDS_DATA = {
       penCell.font = boldDataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
 
-      // Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce
-      // fonds précis est inhabituellement long — remplace toute hauteur figée héritée du fichier
-      // d'origine du conseiller (potentiellement trop courte pour ce nouveau texte).
-      const fund = fundsByIsin.get(isin);
-      const penInfo = (fund && fund.penalite) || { kind: "inconnue", raw: null };
-      const lines = estimatePenaltyLines(penInfo.kind, (penInfo.raw || "").length, (penInfo.dureeVie || "").length, CHARS_PER_LINE);
-      srcWs.getRow(r).height = Math.max(DEFAULT_PENALTY_ROW_HEIGHT, heightForLines(lines, baseFontSize));
+      // Contrairement à "Calendrier de sortie" (feuille dédiée, où toutes les lignes sont
+      // uniformément hautes), Consolidation garde ICI la hauteur de ligne déjà présente dans le
+      // fichier d'origine — la forcer plus haute rendrait seulement les quelques lignes à
+      // pénalité longue visiblement plus hautes que toutes leurs voisines, ce qui casse la
+      // régularité du tableau (même design que Consolidation de base).
     });
 
     extendMergeRight(srcWs, 1, penCol);
@@ -12133,7 +12146,7 @@ window.FUNDS_DATA = {
     // Complète aussi Consolidation elle-même avec 2 colonnes (cash reçu / pénalité de sortie),
     // en formule vers "Calendrier de sortie" — même information, une seule source de vérité.
     const totalCol = findTotalColumn(srcWs, headerRow);
-    addConsolidationColumns(srcWs, headerRow, totalCol, exitWs.name, firstDataRow, lastDataRow, fundsByIsin);
+    addConsolidationColumns(srcWs, headerRow, totalCol, exitWs.name, firstDataRow, lastDataRow, fundsByIsin, isSimulating);
 
     // Ordre des feuilles : Consolidation, Calendrier de sortie, puis le reste tel quel.
     let order = 1;

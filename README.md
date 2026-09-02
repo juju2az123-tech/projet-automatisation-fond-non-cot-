@@ -105,8 +105,11 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    que « Calendrier de sortie »). Si un même fonds est détenu via plusieurs titulaires (donc
    plusieurs lignes dans « Calendrier de sortie »), la ligne unique de Consolidation reprend la
    première trouvée ; le détail par titulaire reste dans l'autre feuille. Colonne Pénalité de
-   sortie large exprès, quadrillage complet (même couleur reprise de Consolidation) et hauteur de
-   ligne calculée par fonds — exactement comme sur « Calendrier de sortie » (voir plus haut). Le
+   sortie large exprès, quadrillage complet (même couleur reprise de Consolidation) — la hauteur
+   de ligne, elle, N'est PAS forcée ici (contrairement à « Calendrier de sortie », voir plus
+   haut) : Consolidation liste l'univers complet des fonds sur des lignes majoritairement courtes
+   et régulières, forcer une hauteur plus grande sur les seules lignes à pénalité longue casserait
+   cette régularité — la hauteur d'origine du fichier client est conservée telle quelle. Le
    quadrillage court sans interruption sur toute la hauteur du VRAI tableau de fonds (catégories
    et fonds, détenus ou non par ce client — Consolidation liste l'univers complet des fonds), sans
    déborder sur un éventuel petit tableau récapitulatif hors-tableau plus bas sur la feuille (ex.
@@ -154,8 +157,11 @@ Techniquement, une seule cellule de référence (cachée, colonne d'aide de « C
 porte soit `=TODAY()` (comportement par défaut, toujours à jour à l'ouverture), soit la date
 choisie (figée) ; toutes les formules concernées la référencent plutôt que d'appeler `TODAY()`
 directement. Quand une simulation est active, un bandeau « Si Date de Retrait Exécuté : JJ/MM/AAAA »
-apparaît sous l'en-tête de chaque tableau (par titulaire) pour que ce soit toujours visible sur le
-fichier généré. Laisser le champ vide **ou choisir explicitement la date du jour elle-même** revient
+apparaît sur les **2 pages** — sous l'en-tête de chaque tableau (par titulaire) sur « Calendrier de
+sortie », et juste au-dessus des colonnes « Rachat — cash reçu » / « Pénalité de sortie » sur
+Consolidation (même ligne que les libellés de regroupement par contrat déjà présents à cet
+endroit) — pour que ce soit toujours visible, où que le conseiller regarde. Laisser le champ vide
+**ou choisir explicitement la date du jour elle-même** revient
 exactement au comportement par défaut (formule `=TODAY()` toujours à jour, aucun bandeau) : ce
 n'est une simulation que si la date choisie diffère réellement d'aujourd'hui. Côté script Python
 (`build_client_workbook.py`), le 3ᵉ argument optionnel en ligne de commande (format `AAAA-MM-JJ`)

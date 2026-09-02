@@ -697,7 +697,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         ws.cell(row=FIRST_DATA_ROW, column=1).alignment = Alignment(wrap_text=True, vertical="center")
         ws.row_dimensions[FIRST_DATA_ROW].height = 30
         apply_print_setup(ws, FIRST_DATA_ROW, len(headers))
-        return ws, 0, len(fund_rows), None, None
+        return ws, 0, len(fund_rows), None, None, is_simulating
 
     r = HEADER_ROW_OUT if show_owner_headings else FIRST_DATA_ROW + (1 if is_simulating else 0)
     for owner_idx, owner_key in enumerate(owner_order):
@@ -848,7 +848,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             r += 1
 
     apply_print_setup(ws, r - 1, len(headers))
-    return ws, len(selected), len(fund_rows), FIRST_DATA_ROW, r - 1
+    return ws, len(selected), len(fund_rows), FIRST_DATA_ROW, r - 1, is_simulating
 
 
 def apply_print_setup(ws, last_row, last_visible_col):
@@ -867,7 +867,7 @@ def apply_print_setup(ws, last_row, last_visible_col):
     ws.sheet_properties.pageSetUpPr.fitToPage = True
 
 
-def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, first_data_row, last_data_row, funds_by_isin):
+def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, first_data_row, last_data_row, funds_by_isin, is_simulating=False):
     """Ajoute 2 colonnes directement sur Consolidation ("Rachat — cash reçu" et "Pénalité de
     sortie"), une par fonds réellement détenu, en formule vers la feuille "Calendrier de sortie"
     déjà construite : même information dans les 2 pages, une seule source de vérité (pas de
@@ -905,7 +905,6 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     two_row_header = has_two_row_header(src_ws, header_row, 1)
     grid_border = build_grid_border(src_ws, header_row)
     PENALTY_COL_WIDTH = 63  # même largeur que sur "Calendrier de sortie", pour un rendu cohérent
-    CHARS_PER_LINE = round(PENALTY_COL_WIDTH * 0.55)  # cf. commentaire dans build_exit_sheet
 
     for col, label, width in ((cash_col, "Rachat — cash reçu", 16), (pen_col, "Pénalité de sortie", PENALTY_COL_WIDTH)):
         cell = src_ws.cell(row=header_row, column=col, value=label)
@@ -923,6 +922,20 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
             bottom_cell._style = copy(header_style)
             bottom_cell.border = grid_border
             src_ws.merge_cells(start_row=header_row, start_column=col, end_row=header_row + 1, end_column=col)
+
+    # Bandeau "Si Date de Retrait Exécuté : XX/XX/XXXX", juste au-dessus des 2 nouvelles colonnes
+    # (même ligne que les libellés de regroupement par contrat déjà présents sur cette même
+    # ligne, ex. "SC DO...", "WE... Grégory") — même formule que sur "Calendrier de sortie",
+    # référencée dans l'autre feuille pour rester la même date partout dans le classeur.
+    if is_simulating:
+        RD = helper_col("ref_date")
+        banner_row = header_row - 1
+        banner_cell = src_ws.cell(row=banner_row, column=cash_col,
+                                   value=f'="Si Date de Retrait Exécuté : "&TEXT(\'{exit_sheet_name}\'!{RD}$1,"dd/mm/yyyy")')
+        for col in (cash_col, pen_col):
+            src_ws.cell(row=banner_row, column=col)._style = copy(header_style)
+        src_ws.merge_cells(start_row=banner_row, start_column=cash_col, end_row=banner_row, end_column=pen_col)
+        banner_cell.alignment = Alignment(horizontal="center", vertical="center")
 
     isin_range = f"'{exit_sheet_name}'!$B${first_data_row}:$B${last_data_row}"
     cash_range = f"'{exit_sheet_name}'!$H${first_data_row}:$H${last_data_row}"
@@ -985,13 +998,11 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         pen_cell.font = bold_data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-        # Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce
-        # fonds précis est inhabituellement long — remplace toute hauteur figée héritée du
-        # fichier d'origine du conseiller (potentiellement trop courte pour ce nouveau texte).
-        fund = funds_by_isin.get(isin)
-        pen_info = (fund or {}).get("penalite") or {"kind": "inconnue", "raw": None}
-        lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), CHARS_PER_LINE)
-        src_ws.row_dimensions[r].height = max(DEFAULT_PENALTY_ROW_HEIGHT, height_for_lines(lines, data_font.size))
+        # Contrairement à "Calendrier de sortie" (feuille dédiée, où toutes les lignes sont
+        # uniformément hautes), Consolidation garde ICI la hauteur de ligne déjà présente dans le
+        # fichier d'origine — la forcer plus haute rendrait seulement les quelques lignes à
+        # pénalité longue visiblement plus hautes que toutes leurs voisines, ce qui casse la
+        # régularité du tableau (même design que Consolidation de base).
 
     extend_merge_right(src_ws, 1, pen_col)
     extend_print_area(src_ws, pen_col)
@@ -1025,14 +1036,14 @@ def main():
 
     ws_cal = write_bdd_calendrier(wb, calendar)
     ws_pen = write_bdd_penalites(wb, funds)
-    exit_ws, selected_count, fund_rows_count, first_data_row, last_data_row = build_exit_sheet(
+    exit_ws, selected_count, fund_rows_count, first_data_row, last_data_row, is_simulating = build_exit_sheet(
         wb, src_ws, calendar, ws_cal.max_row, ws_pen.max_row, funds_by_isin, ref_date_iso)
 
     # Complète aussi Consolidation elle-même avec 2 colonnes (cash reçu / pénalité de sortie),
     # en formule vers "Calendrier de sortie" — même information, une seule source de vérité.
     header_row = find_header_row(src_ws)
     total_col = find_total_column(src_ws, header_row)
-    add_consolidation_columns(src_ws, header_row, total_col, exit_ws.title, first_data_row, last_data_row, funds_by_isin)
+    add_consolidation_columns(src_ws, header_row, total_col, exit_ws.title, first_data_row, last_data_row, funds_by_isin, is_simulating)
 
     wb.active = wb.sheetnames.index("Calendrier de sortie")
     wb.save(out_path)
