@@ -121,7 +121,12 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    déborder sur un éventuel petit tableau récapitulatif hors-tableau plus bas sur la feuille (ex.
    « dont actions européennes : 15 % ») : une ligne n'y est traitée comme une vraie ligne de fonds
    que si sa colonne TOTAL porte une vraie agrégation (=SUM(...) sur ses colonnes de contrat), pas
-   un simple renvoi vers une autre cellule. Le bandeau de titre tout en haut est étendu pour
+   un simple renvoi vers une autre cellule. Le fichier d'origine ne ferme pas le tableau par une
+   bordure basse sur sa dernière ligne, mais par une bordure haute sur la ligne suivante (souvent
+   une note en italique) — sur les colonnes d'origine uniquement : cette même bordure de clôture
+   (couleur et épaisseur reprises telles quelles) est donc reproduite sur les 2 nouvelles colonnes
+   à cette même ligne, pour que le trait de fermeture du tableau ne s'arrête pas juste avant elles.
+   Le bandeau de titre tout en haut est étendu pour
    couvrir les 2 nouvelles colonnes. Consolidation utilise 2 teintes de beige distinctes selon le
    niveau d'imbrication d'une catégorie (ex. catégorie principale en beige foncé, sous-catégorie
    en beige clair) : le fond de chaque bandeau de catégorie (sur les 2 nouvelles colonnes comme

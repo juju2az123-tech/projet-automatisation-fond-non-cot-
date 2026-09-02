@@ -1108,6 +1108,23 @@
       if (neededHeight > (srcWs.getRow(r).height || 0)) srcWs.getRow(r).height = neededHeight;
     });
 
+    // Ligne de clôture du tableau : le fichier d'origine ne la dessine pas comme bordure
+    // basse de la dernière ligne fonds, mais comme bordure haute de la ligne suivante (souvent
+    // une note en italique sous le tableau) — sur les colonnes d'origine uniquement. Sans la
+    // reprendre aussi sur les 2 nouvelles colonnes, la ligne de fermeture du tableau s'arrête
+    // net juste avant elles.
+    if (categoryRows.length || fundRows.length) {
+      const lastBodyRow = Math.max(0, ...categoryRows, ...fundRows);
+      const closingRow = lastBodyRow + 1;
+      const closingSide = srcWs.getCell(closingRow, 1).border && srcWs.getCell(closingRow, 1).border.top;
+      if (closingSide) {
+        const side = JSON.parse(JSON.stringify(closingSide));
+        [cashCol, penCol].forEach((col) => {
+          srcWs.getCell(closingRow, col).style = { fill: { type: "pattern", pattern: "none" }, border: { top: side } };
+        });
+      }
+    }
+
     extendMergeRight(srcWs, 1, penCol);
     extendPrintArea(srcWs, penCol);
   }

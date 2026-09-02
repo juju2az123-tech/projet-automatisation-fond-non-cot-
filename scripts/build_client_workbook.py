@@ -1037,6 +1037,22 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         if needed_height > (src_ws.row_dimensions[r].height or 0):
             src_ws.row_dimensions[r].height = needed_height
 
+    # Ligne de clôture du tableau : le fichier d'origine ne la dessine pas comme bordure basse
+    # de la dernière ligne fonds, mais comme bordure haute de la ligne suivante (souvent une note
+    # en italique sous le tableau) — sur les colonnes d'origine uniquement. Sans la reprendre
+    # aussi sur les 2 nouvelles colonnes, la ligne de fermeture du tableau s'arrête net juste
+    # avant elles.
+    if category_rows or fund_rows:
+        last_body_row = max(category_rows + fund_rows)
+        closing_row = last_body_row + 1
+        closing_side = src_ws.cell(row=closing_row, column=1).border.top
+        if closing_side and closing_side.style:
+            side = copy(closing_side)
+            for col in (cash_col, pen_col):
+                cell = src_ws.cell(row=closing_row, column=col)
+                cell.fill = copy(no_fill)
+                cell.border = Border(top=side)
+
     extend_merge_right(src_ws, 1, pen_col)
     extend_print_area(src_ws, pen_col)
 
