@@ -106,10 +106,11 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    plusieurs lignes dans « Calendrier de sortie »), la ligne unique de Consolidation reprend la
    première trouvée ; le détail par titulaire reste dans l'autre feuille. Colonne Pénalité de
    sortie large exprès, quadrillage complet (même couleur reprise de Consolidation) — la hauteur
-   de ligne, elle, N'est PAS forcée ici (contrairement à « Calendrier de sortie », voir plus
-   haut) : Consolidation liste l'univers complet des fonds sur des lignes majoritairement courtes
-   et régulières, forcer une hauteur plus grande sur les seules lignes à pénalité longue casserait
-   cette régularité — la hauteur d'origine du fichier client est conservée telle quelle. Le
+   de ligne d'origine du fichier client est conservée SAUF si le texte de pénalité pour ce fonds
+   précis a besoin de plus de place (calculé comme sur « Calendrier de sortie », voir plus haut) :
+   le texte lisible passe avant la régularité visuelle des lignes, mais la grande majorité des
+   lignes (courtes ou vides) garde sa hauteur native, seules les quelques lignes à texte long
+   sont agrandies. Le
    quadrillage court sans interruption sur toute la hauteur du VRAI tableau de fonds (catégories
    et fonds, détenus ou non par ce client — Consolidation liste l'univers complet des fonds), sans
    déborder sur un éventuel petit tableau récapitulatif hors-tableau plus bas sur la feuille (ex.
@@ -146,7 +147,12 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    d'investissement pour le fonds concerné : les 5 dates de rachat et la pénalité de sortie se
    recalculent automatiquement (formules Excel), à partir des échéances les plus proches **de la
    date du jour** au moment de l'ouverture (ou de la date de retrait simulée si l'étape 0
-   ci-dessous a été utilisée).
+   ci-dessous a été utilisée). Si un fonds a bien des échéances de rachat connues dans la base mais
+   qu'aucune n'est encore à venir par rapport à cette date (calendrier officiel qui ne couvre pas
+   assez loin dans le temps — typique d'une simulation à une date très éloignée), la colonne
+   Pénalité de sortie l'indique explicitement (« Calendrier de rachat non disponible pour cette
+   date : le calendrier officiel doit être mis à jour. ») plutôt que de laisser les colonnes de
+   rachat silencieusement vides ou d'afficher une date invalide (« 00/01/1900 »).
 
 **Simuler une date de retrait future (optionnel)** : avant de déposer le fichier, le conseiller
 peut renseigner un champ « Simuler une date de retrait future » sur la page. Si le client demande
@@ -160,7 +166,11 @@ directement. Quand une simulation est active, un bandeau « Si Date de Retrait E
 apparaît sur les **2 pages** — sous l'en-tête de chaque tableau (par titulaire) sur « Calendrier de
 sortie », et juste au-dessus des colonnes « Rachat — cash reçu » / « Pénalité de sortie » sur
 Consolidation (même ligne que les libellés de regroupement par contrat déjà présents à cet
-endroit) — pour que ce soit toujours visible, où que le conseiller regarde. Laisser le champ vide
+endroit) — pour que ce soit toujours visible, où que le conseiller regarde. Ce bandeau construit
+« JJ/MM/AAAA » lui-même via `DAY()`/`MONTH()`/`YEAR()` plutôt que `TEXT(date,"dd/mm/yyyy")` : les
+codes de format de date de `TEXT()` sont traduits selon la langue d'Excel (« jj/mm/aaaa » en
+français), donc `"dd/mm/yyyy"` y produit `#VALEUR!` — la construction manuelle, elle, ne dépend
+d'aucune langue. Laisser le champ vide
 **ou choisir explicitement la date du jour elle-même** revient
 exactement au comportement par défaut (formule `=TODAY()` toujours à jour, aucun bandeau) : ce
 n'est une simulation que si la date choisie diffère réellement d'aujourd'hui. Côté script Python

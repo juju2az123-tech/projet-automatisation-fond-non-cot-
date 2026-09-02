@@ -513,6 +513,15 @@ def helper_col(name):
     return get_column_letter(idx)
 
 
+def fr_date_expr(date_expr):
+    """Formule Excel "JJ/MM/AAAA" pour la date renvoyée par `date_expr`, SANS utiliser
+    TEXT(date,"dd/mm/yyyy") : les codes de format de date dans TEXT() sont traduits selon la
+    langue d'Excel (ex. "jj/mm/aaaa" en français) — "dd/mm/yyyy" y produit #VALEUR!. DAY/MONTH/
+    YEAR + TEXT(nombre,"00") (un format NUMÉRIQUE, jamais traduit) donnent le même résultat
+    indépendamment de la langue du classeur."""
+    return f'TEXT(DAY({date_expr}),"00")&"/"&TEXT(MONTH({date_expr}),"00")&"/"&YEAR({date_expr})'
+
+
 def has_rachat_calendar(calendar, isin):
     """Un fonds n'a de calendrier "de sortie" que s'il a des échéances de type Rachat."""
     by_type = calendar.get(isin) if isin else None
@@ -664,7 +673,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     # tableau UNIQUEMENT quand le conseiller a choisi de simuler une date de retrait future
     # (sinon rien à signaler, les calculs sont déjà "à la date du jour" par défaut).
     def write_sim_banner(at_row):
-        cell = ws.cell(row=at_row, column=1, value=f'="Si Date de Retrait Exécuté : "&TEXT({RD}$1,"dd/mm/yyyy")')
+        cell = ws.cell(row=at_row, column=1, value=f'="Si Date de Retrait Exécuté : "&{fr_date_expr(f"{RD}$1")}')
         for c in range(1, len(headers) + 1):
             ws.cell(row=at_row, column=c)._style = copy(header_style)
         ws.merge_cells(start_row=at_row, start_column=1, end_row=at_row, end_column=len(headers))
@@ -766,9 +775,13 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             AD1 = helper_col("rate_now")
 
             ws[f"{L}{r}"] = f'=COUNTIFS({cal("A")},{b},{cal("C")},"Rachat")'
-            ws[f"{M}{r}"] = (f'=IF({L}{r}=0,"",IFERROR(_xlfn.MINIFS({cal("D")},'
-                              f'{cal("A")},{b},{cal("C")},"Rachat",'
-                              f'{cal("D")},">="&{RD}$1),""))')
+            # Même remarque que pour minifs_field plus bas : MINIFS renvoie 0 (jamais une erreur)
+            # quand ce fonds a bien des échéances "Rachat" ({L}>0) mais qu'AUCUNE n'est encore à
+            # venir par rapport à la date de référence (toutes déjà passées) — sans la
+            # vérification "=0" ci-dessous, Excel afficherait ce 0 comme une date, "00/01/1900",
+            # au lieu de laisser la cellule vide.
+            next_cutoff_expr = f'_xlfn.MINIFS({cal("D")},{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},">="&{RD}$1)'
+            ws[f"{M}{r}"] = f'=IF({L}{r}=0,"",IFERROR(IF({next_cutoff_expr}=0,"",{next_cutoff_expr}),""))'
             # VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS
             # avec une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une
             # reconstruction de clé texte + MATCH, plus fragile) — même mécanisme que {M}
@@ -825,6 +838,11 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
                 f'{S}{r}="inconnue","",'
                 f'{c}="","Saisir une date d\'investissement pour statuer sur la pénalité.",'
                 f'{Q}{r}="FUTUR","Date d\'investissement postérieure à aujourd\'hui — vérifier la saisie.",'
+                # Le fonds a bien des échéances "Rachat" connues ({L}>0) mais aucune à partir de
+                # la date de référence choisie ({M} vide) : le calendrier officiel ne couvre pas
+                # assez loin dans le temps pour répondre — à signaler explicitement plutôt que de
+                # laisser les colonnes de rachat silencieusement vides.
+                f'AND({L}{r}>0,{M}{r}=""),"Calendrier de rachat non disponible pour cette date : le calendrier officiel doit être mis à jour.",'
                 f'{AD1}{r}>0,"Pénalité de sortie : "&{Tc}{r}&CHAR(10)&"Durée de détention actuelle : "&{Q}{r}&" mois.",'
                 f'TRUE(),"")'
             )
@@ -905,6 +923,7 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     two_row_header = has_two_row_header(src_ws, header_row, 1)
     grid_border = build_grid_border(src_ws, header_row)
     PENALTY_COL_WIDTH = 63  # même largeur que sur "Calendrier de sortie", pour un rendu cohérent
+    CHARS_PER_LINE = round(PENALTY_COL_WIDTH * 0.55)  # cf. commentaire dans build_exit_sheet
 
     for col, label, width in ((cash_col, "Rachat — cash reçu", 16), (pen_col, "Pénalité de sortie", PENALTY_COL_WIDTH)):
         cell = src_ws.cell(row=header_row, column=col, value=label)
@@ -930,8 +949,9 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     if is_simulating:
         RD = helper_col("ref_date")
         banner_row = header_row - 1
+        ref_cell_addr = f"'{exit_sheet_name}'!{RD}$1"
         banner_cell = src_ws.cell(row=banner_row, column=cash_col,
-                                   value=f'="Si Date de Retrait Exécuté : "&TEXT(\'{exit_sheet_name}\'!{RD}$1,"dd/mm/yyyy")')
+                                   value=f'="Si Date de Retrait Exécuté : "&{fr_date_expr(ref_cell_addr)}')
         for col in (cash_col, pen_col):
             src_ws.cell(row=banner_row, column=col)._style = copy(header_style)
         src_ws.merge_cells(start_row=banner_row, start_column=cash_col, end_row=banner_row, end_column=pen_col)
@@ -998,11 +1018,16 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         pen_cell.font = bold_data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-        # Contrairement à "Calendrier de sortie" (feuille dédiée, où toutes les lignes sont
-        # uniformément hautes), Consolidation garde ICI la hauteur de ligne déjà présente dans le
-        # fichier d'origine — la forcer plus haute rendrait seulement les quelques lignes à
-        # pénalité longue visiblement plus hautes que toutes leurs voisines, ce qui casse la
-        # régularité du tableau (même design que Consolidation de base).
+        # Hauteur augmentée seulement si le texte réel de la base pour ce fonds précis est
+        # inhabituellement long, pour ne jamais couper le texte de pénalité — quitte à rendre
+        # cette ligne précise plus haute que ses voisines (le texte lisible passe avant la
+        # régularité visuelle du tableau).
+        fund = funds_by_isin.get(isin)
+        pen_info = (fund or {}).get("penalite") or {"kind": "inconnue", "raw": None}
+        lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), CHARS_PER_LINE)
+        needed_height = height_for_lines(lines, data_font.size)
+        if needed_height > (src_ws.row_dimensions[r].height or 0):
+            src_ws.row_dimensions[r].height = needed_height
 
     extend_merge_right(src_ws, 1, pen_col)
     extend_print_area(src_ws, pen_col)
