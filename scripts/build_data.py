@@ -55,7 +55,12 @@ def parse_penalite(raw):
     if "fond fermé" in low or "fonds fermé" in low:
         return {"kind": "ferme", "raw": text, "tiers": []}
 
-    if "aucune pénalité" in low or "pas de lock-up" in low.replace("lock up", "lock-up"):
+    # Plusieurs formulations rencontrées dans la base pour "pas de pénalité de sortie", y
+    # compris 2 coquilles réelles ("pénalié" sans le "t", "aucun" au lieu de "aucune") — sans
+    # cette liste, ces fonds tombaient à tort en "manuel" (à vérifier à la main) alors que la
+    # base dit déjà explicitement qu'il n'y a pas de pénalité.
+    no_penalty_patterns = ("aucune pénalité", "aucun penalité", "pas de pénalité", "pas de pénalié")
+    if any(p in low for p in no_penalty_patterns) or "pas de lock-up" in low.replace("lock up", "lock-up"):
         return {"kind": "aucune", "raw": text, "tiers": []}
 
     # Pénalité dégressive multi-paliers : "0-18 mois 7,5% · 18-36 mois 5% · ..."
@@ -176,12 +181,22 @@ def merge_extra_from_calendriers_par_fonds(wb, funds):
 #    chiffres de façon fiable sans risque d'erreur.
 # ---------------------------------------------------------------------------
 
+# Intitulés observés dans la base pour la durée de vie du fonds (durée totale avant dissolution,
+# éventuelles prorogations) — la formulation varie d'un fonds à l'autre (rédigée au cas par cas à
+# partir du DICI), d'où cette liste de variantes plutôt qu'un seul texte fixe. Ex. FPCI Cairn
+# Capital II (FR0013372687) utilise "Terme du fonds" plutôt que "Durée de vie du fonds".
+DUREE_VIE_LABELS = (
+    "durée de vie du fonds",
+    "terme du fonds",
+)
+
+
 def extract_duree_vie(raw):
     if not raw or not isinstance(raw, str):
         return None
     for segment in raw.split("\n"):
         segment = segment.strip()
-        if segment.lower().startswith("durée de vie du fonds"):
+        if any(segment.lower().startswith(label) for label in DUREE_VIE_LABELS):
             return segment
     return None
 

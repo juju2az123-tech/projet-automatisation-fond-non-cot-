@@ -1,6 +1,6 @@
 // Fichier généré automatiquement par scripts/build_data.py — ne pas éditer à la main.
 window.FUNDS_DATA = {
-  "generatedAt": "2026-09-02 15:34",
+  "generatedAt": "2026-09-02 16:09",
   "sourceFiles": [
     "Calendriers_de_fonds_Althos.xlsx",
     "Bibliotheque_de_fonds_Althos.xlsx"
@@ -613,7 +613,7 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "manuel",
+        "kind": "aucune",
         "raw": "pas de pénalité de sortie",
         "tiers": []
       },
@@ -637,7 +637,7 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "manuel",
+        "kind": "aucune",
         "raw": "pas de pénalité de sortie",
         "tiers": []
       },
@@ -1115,7 +1115,7 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "manuel",
+        "kind": "aucune",
         "raw": "pas de pénalité de sortie",
         "tiers": []
       },
@@ -1413,7 +1413,7 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "manuel",
+        "kind": "aucune",
         "raw": "pas de pénalié de sortie",
         "tiers": []
       },
@@ -1511,7 +1511,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "dureeVie": "Terme du fonds : 13 ans."
       },
       "key": "FR0013372687",
       "hasCalendar": false,
@@ -1635,7 +1636,7 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "manuel",
+        "kind": "aucune",
         "raw": "pas de pénalié de sortie",
         "tiers": []
       },
@@ -1659,7 +1660,7 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "manuel",
+        "kind": "aucune",
         "raw": "pas de pénalié de sortie",
         "tiers": []
       },
@@ -2519,7 +2520,7 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "manuel",
+        "kind": "aucune",
         "raw": "pas de pénalité de sortie.",
         "tiers": []
       },
@@ -2905,7 +2906,7 @@ window.FUNDS_DATA = {
       "couvertureJusquau": "2026-12-28",
       "statutCouverture": "OK",
       "penalite": {
-        "kind": "manuel",
+        "kind": "aucune",
         "raw": "pas de pénalité de sortie",
         "tiers": []
       },
@@ -3387,7 +3388,7 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "manuel",
+        "kind": "aucune",
         "raw": "pas de pénalité de sortie.",
         "tiers": []
       },
@@ -3411,7 +3412,7 @@ window.FUNDS_DATA = {
       "couvertureJusquau": null,
       "statutCouverture": "Aucun calendrier",
       "penalite": {
-        "kind": "manuel",
+        "kind": "aucune",
         "raw": "aucun penalité de sortie",
         "tiers": []
       },
