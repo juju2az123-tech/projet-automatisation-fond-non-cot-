@@ -117,7 +117,13 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    niveau d'imbrication d'une catégorie (ex. catégorie principale en beige foncé, sous-catégorie
    en beige clair) : le fond de chaque bandeau de catégorie (sur les 2 nouvelles colonnes comme
    sur « Calendrier de sortie ») reprend la teinte exacte de SA catégorie d'origine, pas un modèle
-   unique emprunté à la première catégorie trouvée. Les dates de la colonne « Rachat — cash reçu »
+   unique emprunté à la première catégorie trouvée. Une ligne de catégorie (bandeau) est détectée
+   par son fond uni ET l'absence d'ISIN en colonne B — jamais par le gras seul, que certains
+   fichiers clients réservent aux catégories de premier niveau sans l'appliquer aux
+   sous-catégories (ex. « dont actions européennes »), qui restent pourtant de vrais bandeaux à
+   traiter de la même façon. L'épaisseur et la couleur du quadrillage sont toutes deux reprises
+   telles quelles de la bordure fine déjà utilisée par Consolidation (jamais une épaisseur forcée
+   en dur), pour un rendu identique. Les dates de la colonne « Rachat — cash reçu »
    et le texte de la colonne « Pénalité de sortie » sont en gras (sur les deux feuilles) — une
    formule Excel ne pouvant jamais renvoyer un texte à mise en forme mixte (gras partiel sur une
    phrase précise au milieu du message), c'est tout le contenu de la cellule qui est mis en gras
@@ -149,9 +155,11 @@ porte soit `=TODAY()` (comportement par défaut, toujours à jour à l'ouverture
 choisie (figée) ; toutes les formules concernées la référencent plutôt que d'appeler `TODAY()`
 directement. Quand une simulation est active, un bandeau « Si Date de Retrait Exécuté : JJ/MM/AAAA »
 apparaît sous l'en-tête de chaque tableau (par titulaire) pour que ce soit toujours visible sur le
-fichier généré. Laisser le champ vide revient exactement au comportement par défaut (date du jour,
-aucun bandeau). Côté script Python (`build_client_workbook.py`), le 3ᵉ argument optionnel en ligne
-de commande (format `AAAA-MM-JJ`) fait la même chose.
+fichier généré. Laisser le champ vide **ou choisir explicitement la date du jour elle-même** revient
+exactement au comportement par défaut (formule `=TODAY()` toujours à jour, aucun bandeau) : ce
+n'est une simulation que si la date choisie diffère réellement d'aujourd'hui. Côté script Python
+(`build_client_workbook.py`), le 3ᵉ argument optionnel en ligne de commande (format `AAAA-MM-JJ`)
+fait la même chose.
 
 **Comment ça détecte les fonds à retenir ?** Aucune structure de fichier n'est supposée fixe :
 l'outil repère la feuille via son en-tête (« Support » en colonne A), la colonne « TOTAL » (montant

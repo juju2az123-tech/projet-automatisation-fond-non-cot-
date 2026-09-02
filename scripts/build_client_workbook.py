@@ -71,15 +71,18 @@ def find_header_row(ws):
 
 
 def build_grid_border(ws, header_row):
-    """Couleur de quadrillage reprise telle quelle (référence de thème + teinte, PAS une valeur
-    fixe) de la bordure déjà utilisée par l'en-tête de Consolidation — sa couleur réelle dépend du
-    thème propre à chaque classeur (beige dans certains, bleu dans d'autres). Renvoie une bordure
-    complète (4 côtés) prête à appliquer à une cellule."""
+    """Couleur ET épaisseur de quadrillage reprises telles quelles (référence de thème + teinte,
+    PAS une valeur fixe) de la bordure déjà utilisée par l'en-tête de Consolidation — sa couleur
+    réelle dépend du thème propre à chaque classeur (beige dans certains, bleu dans d'autres).
+    header_border.top est le cadre extérieur ÉPAIS de l'en-tête (volontairement plus marqué),
+    jamais représentatif du quadrillage interne fin utilisé partout ailleurs dans le tableau ;
+    header_border.left, elle, EST cette bordure fine — c'est elle qu'il faut reprendre en
+    priorité, sans forcer une épaisseur différente. Renvoie une bordure complète (4 côtés) prête à
+    appliquer à une cellule."""
     header_border = ws.cell(row=header_row, column=1).border
-    ref_side = header_border.left or header_border.top or header_border.right or header_border.bottom
+    ref_side = header_border.left or header_border.right or header_border.bottom or header_border.top
     side = (copy(ref_side) if ref_side is not None and ref_side.style
             else Side(style="thin", color="FFDDCCB8"))
-    side.style = "medium"
     return Border(top=side, left=side, bottom=side, right=side)
 
 
@@ -279,7 +282,11 @@ def _is_sum_total(v):
 
 
 def classify_rows(ws, header_row, total_col=None):
-    """Une ligne de catégorie (bandeau) est en gras + fond uni, sans ISIN en colonne B.
+    """Une ligne de catégorie (bandeau) a un fond uni et pas d'ISIN en colonne B — jamais une
+    vraie ligne de fonds. Le gras n'est PAS un critère fiable : certains fichiers clients ne
+    mettent en gras que les catégories de premier niveau, pas les sous-catégories (ex. "dont
+    actions européennes"), qui restent pourtant de vrais bandeaux (fond uni, pas d'ISIN) à traiter
+    de la même façon.
 
     Associe aussi à chaque ligne fonds le libellé de la dernière catégorie rencontrée
     au-dessus d'elle (row_to_category), pour reproduire les mêmes bandeaux de catégorie
@@ -298,7 +305,7 @@ def classify_rows(ws, header_row, total_col=None):
         b = ws.cell(row=r, column=2)
         if a.value is None:
             continue
-        if a.fill.patternType == "solid" and (a.font.bold or False) and b.value is None:
+        if a.fill.patternType == "solid" and b.value is None:
             cat_rows.append(r)
             current_category = str(a.value).strip()
             current_category_fill = copy(a.fill)
@@ -526,12 +533,17 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     # cellule dédiée (jamais TODAY() en dur dans les formules) pour que TOUT le tableau — dates de
     # rachat comprises — se recalcule par rapport à cette même date de référence.
     RD = helper_col("ref_date")
+    # Si le conseiller a choisi (via le calendrier) la date du jour elle-même, ce n'est pas une
+    # simulation — le comportement doit rester strictement identique à un champ laissé vide
+    # (formule =TODAY() toujours à jour, pas de bandeau), plutôt que de figer une date qui
+    # deviendrait fausse dès le lendemain.
+    is_simulating = bool(ref_date_iso) and ref_date_iso != datetime.date.today().isoformat()
 
     ws = wb.create_sheet("Calendrier de sortie")
     wb._sheets.remove(ws)
     wb._sheets.insert(wb._sheets.index(src_ws) + 1, ws)  # right after "Consolidation"
 
-    if ref_date_iso:
+    if is_simulating:
         y, m, d = (int(p) for p in ref_date_iso.split("-"))
         ref_cell = ws[f"{RD}1"]
         ref_cell.value = datetime.datetime(y, m, d)
@@ -661,7 +673,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
 
     if not show_owner_headings:
         write_header_row(HEADER_ROW_OUT)
-        if ref_date_iso:
+        if is_simulating:
             write_sim_banner(FIRST_DATA_ROW)
 
     PENALTY_COL_WIDTH = 63
@@ -687,7 +699,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         apply_print_setup(ws, FIRST_DATA_ROW, len(headers))
         return ws, 0, len(fund_rows), None, None
 
-    r = HEADER_ROW_OUT if show_owner_headings else FIRST_DATA_ROW + (1 if ref_date_iso else 0)
+    r = HEADER_ROW_OUT if show_owner_headings else FIRST_DATA_ROW + (1 if is_simulating else 0)
     for owner_idx, owner_key in enumerate(owner_order):
         if show_owner_headings:
             heading = harmonize_owner_label(owner_key, owner_civilities)
@@ -700,7 +712,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             r += 1
             write_header_row(r)
             r += 1
-            if ref_date_iso:
+            if is_simulating:
                 write_sim_banner(r)
                 r += 1
 

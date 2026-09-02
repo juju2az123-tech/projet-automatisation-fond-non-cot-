@@ -55,11 +55,22 @@
     return new Date(Date.UTC(y, m - 1, d));
   }
 
-  function isSolidBold(cell) {
-    const fill = cell.fill;
+  /** Une ligne de catégorie (bandeau) a un fond uni et pas d'ISIN en colonne B — jamais une vraie
+   *  ligne de fonds. Le gras n'est PAS un critère fiable : certains fichiers clients mettent en
+   *  gras uniquement les catégories de premier niveau, pas les sous-catégories (ex. "dont actions
+   *  européennes"), qui restent pourtant de vrais bandeaux (fond uni, pas d'ISIN) à traiter de la
+   *  même façon. */
+  function isSolidBold(cellA, cellB) {
+    const fill = cellA.fill;
     const isSolid = !!(fill && fill.type === "pattern" && fill.pattern === "solid");
-    const isBold = !!(cell.font && cell.font.bold);
-    return isSolid && isBold;
+    // Une cellule B "esclave" de la même fusion que A (bandeau de catégorie fusionné sur
+    // plusieurs colonnes) hérite la valeur de la cellule maîtresse A quand on la lit avec
+    // ExcelJS (contrairement à openpyxl, qui renvoie None) — ce n'est jamais un vrai ISIN, même
+    // si `.value` renvoie un texte non vide dans ce cas précis.
+    const bIsMergedIntoA = cellB.isMerged && cellA.isMerged && cellB.master && cellA.master &&
+      cellB.master.address === cellA.master.address;
+    const hasIsin = !bIsMergedIntoA && cellB.value !== null && cellB.value !== undefined && cellB.value !== "";
+    return isSolid && !hasIsin;
   }
 
   /** "18/08/2026", au format numérique jour/mois/année. */
@@ -79,12 +90,16 @@
    *  du thème propre à chaque classeur (beige dans certains, bleu dans d'autres). Renvoie un
    *  bordure complète (4 côtés) prête à appliquer à une cellule. */
   function buildGridBorder(ws, headerRow) {
+    // headerBorder.top est la bordure ÉPAISSE du cadre extérieur de l'en-tête (volontairement
+    // plus marquée) — jamais représentative du quadrillage interne fin utilisé partout ailleurs
+    // dans le tableau (entre catégories et fonds). headerBorder.left, elle, EST cette bordure
+    // fine (même couleur, épaisseur "thin") : c'est elle qu'il faut reprendre telle quelle, sans
+    // forcer une épaisseur différente.
     const headerBorder = ws.getCell(headerRow, 1).border || {};
     const side = JSON.parse(JSON.stringify(
-      headerBorder.left || headerBorder.top || headerBorder.right || headerBorder.bottom ||
+      headerBorder.left || headerBorder.right || headerBorder.bottom || headerBorder.top ||
       { style: "thin", color: { argb: "FFDDCCB8" } }
     ));
-    side.style = "medium";
     return { top: side, left: side, bottom: side, right: side };
   }
 
@@ -297,8 +312,9 @@
     // headerRow+1 = ligne de total général (pas une catégorie, pas un fonds) -> ignorée
     for (let r = headerRow + 2; r <= lastRow; r++) {
       const a = ws.getCell(r, 1);
+      const bCell = ws.getCell(r, 2);
       if (a.value === null || a.value === undefined || a.value === "") continue;
-      if (isSolidBold(a)) {
+      if (isSolidBold(a, bCell)) {
         categoryRows.push(r);
         currentCategory = String(a.value).trim();
         currentCategoryFill = JSON.parse(JSON.stringify(a.style.fill || {}));
@@ -449,6 +465,15 @@
     // cellule dédiée (jamais TODAY() en dur dans les formules) pour que TOUT le tableau — dates de
     // rachat comprises — se recalcule par rapport à cette même date de référence.
     const RD = helperCol("ref_date");
+    // Si le conseiller a choisi (via le calendrier) la date du jour elle-même, ce n'est pas une
+    // simulation — le comportement doit rester strictement identique à un champ laissé vide
+    // (formule =TODAY() toujours à jour, pas de bandeau), plutôt que de figer une date qui
+    // deviendrait fausse dès le lendemain.
+    const todayIso = (() => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    })();
+    const isSimulating = !!(refDateIso && refDateIso !== todayIso);
 
     const ws = workbook.addWorksheet("Calendrier de sortie");
     // Quadrillage Excel par défaut désactivé, comme sur Consolidation : sans ça, le fond gris
@@ -459,10 +484,14 @@
     // automatiquement le contour bleu de la zone d'impression en vue Normale.
     ws.views = [{ showGridLines: false, style: "pageBreakPreview" }];
 
-    if (refDateIso) {
+    if (isSimulating) {
       const refCell = ws.getCell(1, colNumOf(RD));
+      // Réassigne `.style` en entier (pas `.numFmt = ...` isolément) : ExcelJS peut faire
+      // partager le même objet de style, en interne, par plusieurs cellules d'un même classeur —
+      // une mutation isolée peut alors silencieusement récupérer un format hérité d'ailleurs
+      // (déjà vu avec fill/border sur Consolidation) au lieu du format date attendu.
+      refCell.style = { numFmt: "dd/mm/yyyy" };
       refCell.value = toExcelDate(refDateIso);
-      refCell.numFmt = "dd/mm/yyyy";
     } else {
       setF(ws, `${RD}1`, "TODAY()");
     }
@@ -597,7 +626,7 @@
 
     if (!showOwnerHeadings) {
       writeHeaderRow(HEADER_ROW_OUT);
-      if (refDateIso) writeSimBanner(FIRST_DATA_ROW);
+      if (isSimulating) writeSimBanner(FIRST_DATA_ROW);
     }
     const PENALTY_COL_WIDTH = 63;
     // Facteur 0.7 : la police réelle (Montserrat) est plus large qu'une police système classique
@@ -618,13 +647,13 @@
       ws.getCell(FIRST_DATA_ROW, 1).alignment = { wrapText: true, vertical: "middle" };
       ws.getRow(FIRST_DATA_ROW).height = 30;
       applyPrintSetup(ws, FIRST_DATA_ROW, headers.length);
-      return { ws, selectedCount: 0, fundRowsScanned: fundRows.length, rowsNeedingDate: [], firstDataRow: null, lastDataRow: null };
+      return { ws, selectedCount: 0, fundRowsScanned: fundRows.length, rowsNeedingDate: [], firstDataRow: null, lastDataRow: null, isSimulating };
     }
 
     // 3) Un bandeau par titulaire suivi de sa propre ligne d'en-tête (bandeaux de catégorie beige,
     //    puis une ligne par fonds retenu, avec les formules de calcul) — chaque titulaire séparé
     //    du suivant par 1 ligne vide, pour que 2 tableaux distincts ne paraissent pas collés.
-    let r = showOwnerHeadings ? HEADER_ROW_OUT : FIRST_DATA_ROW + (refDateIso ? 1 : 0);
+    let r = showOwnerHeadings ? HEADER_ROW_OUT : FIRST_DATA_ROW + (isSimulating ? 1 : 0);
     const rowsNeedingDate = [];
     ownerOrder.forEach((ownerKey, ownerIdx) => {
       if (showOwnerHeadings) {
@@ -639,7 +668,7 @@
         r += 1;
         writeHeaderRow(r);
         r += 1;
-        if (refDateIso) { writeSimBanner(r); r += 1; }
+        if (isSimulating) { writeSimBanner(r); r += 1; }
       }
 
       let currentCategory; // undefined != "" : force le 1er bandeau même si catégorie ""
@@ -774,7 +803,7 @@
     applyPrintSetup(ws, r - 1, headers.length);
     return {
       ws, selectedCount: selected.length, fundRowsScanned: fundRows.length, rowsNeedingDate,
-      firstDataRow: FIRST_DATA_ROW, lastDataRow: r - 1,
+      firstDataRow: FIRST_DATA_ROW, lastDataRow: r - 1, isSimulating,
     };
   }
 
@@ -1104,7 +1133,7 @@
     const wsCal = writeBddCalendrier(workbook, CALENDAR);
     const wsPen = writeBddPenalites(workbook, FUNDS);
 
-    const { ws: exitWs, selectedCount, fundRowsScanned, rowsNeedingDate, firstDataRow, lastDataRow } =
+    const { ws: exitWs, selectedCount, fundRowsScanned, rowsNeedingDate, firstDataRow, lastDataRow, isSimulating } =
       buildExitSheet(workbook, srcWs, headerRow, CALENDAR, wsCal.rowCount, wsPen.rowCount, fundsByIsin, refDateIso);
 
     // Complète aussi Consolidation elle-même avec 2 colonnes (cash reçu / pénalité de sortie),
@@ -1131,7 +1160,7 @@
     return {
       workbook,
       exitWs,
-      stats: { selectedCount, fundRowsScanned, headerRow },
+      stats: { selectedCount, fundRowsScanned, headerRow, isSimulating },
       rowsNeedingDate,
     };
   }
