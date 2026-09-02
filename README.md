@@ -113,10 +113,15 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    « dont actions européennes : 15 % ») : une ligne n'y est traitée comme une vraie ligne de fonds
    que si sa colonne TOTAL porte une vraie agrégation (=SUM(...) sur ses colonnes de contrat), pas
    un simple renvoi vers une autre cellule. Le bandeau de titre tout en haut est étendu pour
-   couvrir les 2 nouvelles colonnes. Les dates de la colonne « Rachat — cash reçu » et le texte de
-   la colonne « Pénalité de sortie » (sur les deux feuilles) sont en gras — une formule Excel ne
-   pouvant jamais renvoyer un texte à mise en forme mixte (gras partiel), c'est tout le contenu de
-   la cellule qui est mis en gras en bloc plutôt qu'une phrase seule.
+   couvrir les 2 nouvelles colonnes. Consolidation utilise 2 teintes de beige distinctes selon le
+   niveau d'imbrication d'une catégorie (ex. catégorie principale en beige foncé, sous-catégorie
+   en beige clair) : le fond de chaque bandeau de catégorie (sur les 2 nouvelles colonnes comme
+   sur « Calendrier de sortie ») reprend la teinte exacte de SA catégorie d'origine, pas un modèle
+   unique emprunté à la première catégorie trouvée. Les dates de la colonne « Rachat — cash reçu »
+   sont en gras (sur les deux feuilles) ; le texte de la colonne « Pénalité de sortie », lui, n'est
+   pas mis en gras pour l'instant — une formule Excel ne pouvant jamais renvoyer un texte à mise en
+   forme mixte (gras partiel sur une phrase précise), reproduire fidèlement une maquette avec gras
+   partiel demande un choix de conception encore en discussion.
 3. **Si des fonds détenus ont une pénalité de sortie qui dépend d'une date d'investissement**
    (règle à seuil, soft lock-up ou dégressive), la page affiche directement une liste de ces
    fonds avec un champ de saisie par fonds — le conseiller renseigne les dates connues sans

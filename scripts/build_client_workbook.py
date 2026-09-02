@@ -283,7 +283,12 @@ def classify_rows(ws, header_row, total_col=None):
     """
     cat_rows, fund_rows = [], []
     row_to_category = {}
+    # Fond (beige clair ou foncé selon le niveau d'imbrication de LA catégorie) de la ligne de
+    # catégorie la plus proche au-dessus de chaque fonds — pour pouvoir reproduire fidèlement la
+    # même teinte ailleurs (Consolidation utilise 2 teintes de beige distinctes selon le niveau).
+    row_to_category_fill = {}
     current_category = None
+    current_category_fill = None
     for r in range(header_row + 2, ws.max_row + 1):  # header_row+1 = ligne de total général
         a = ws.cell(row=r, column=1)
         b = ws.cell(row=r, column=2)
@@ -292,12 +297,14 @@ def classify_rows(ws, header_row, total_col=None):
         if a.fill.patternType == "solid" and (a.font.bold or False) and b.value is None:
             cat_rows.append(r)
             current_category = str(a.value).strip()
+            current_category_fill = copy(a.fill)
         else:
             if total_col and not _is_sum_total(ws.cell(row=r, column=total_col).value):
                 continue
             fund_rows.append(r)
             row_to_category[r] = current_category
-    return cat_rows, fund_rows, row_to_category
+            row_to_category_fill[r] = current_category_fill
+    return cat_rows, fund_rows, row_to_category, row_to_category_fill
 
 
 def holding_amount(ws, row, total_col):
@@ -516,7 +523,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     if header_row is None:
         raise ValueError('En-tête "Support" introuvable dans les 15 premières lignes de la feuille Consolidation.')
     total_col = find_total_column(src_ws, header_row)
-    cat_rows, fund_rows, row_to_category = classify_rows(src_ws, header_row, total_col)
+    cat_rows, fund_rows, row_to_category, row_to_category_fill = classify_rows(src_ws, header_row, total_col)
     owner_labels = detect_owner_labels(src_ws, header_row, total_col)
 
     # Fonds détenus (répartis par titulaire de contrat) ET dotés d'un calendrier de RACHAT connu.
@@ -535,10 +542,11 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             continue
         nom = src_ws.cell(row=r, column=1).value or fund["nom"]
         category = row_to_category.get(r) or ""
+        category_fill = row_to_category_fill.get(r)
         for owner, amount in holding_by_owner(src_ws, r, total_col, owner_labels):
             if amount is not None and abs(amount) <= 0.005:
                 continue
-            selected.append({"isin": isin, "nom": nom, "category": category, "owner": owner, "penalite": fund["penalite"]})
+            selected.append({"isin": isin, "nom": nom, "category": category, "category_fill": category_fill, "owner": owner, "penalite": fund["penalite"]})
 
     # Regroupement par titulaire : un tableau complètement séparé par titulaire (Monsieur /
     # Madame / société...), plutôt qu'une colonne "Titulaire" au milieu d'un tableau commun —
@@ -577,9 +585,10 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
 
     title_style = copy(src_ws.cell(row=1, column=1)._style)
     subtitle_style = copy(src_ws.cell(row=3, column=1)._style)
-    # Style de bandeau de catégorie : repris tel quel de la première ligne de catégorie trouvée
-    # dans la Consolidation (même couleur beige, même police en gras).
-    category_style = copy(src_ws.cell(row=cat_rows[0], column=1)._style) if cat_rows else None
+    # Police de bandeau de catégorie : reprise de la première ligne de catégorie trouvée dans
+    # Consolidation (même police en gras). Le FOND, lui, varie par catégorie (voir plus bas) :
+    # Consolidation utilise 2 teintes de beige distinctes selon le niveau d'imbrication.
+    category_font = copy(src_ws.cell(row=cat_rows[0], column=1).font) if cat_rows else None
     grid_border = build_grid_border(src_ws, header_row)
     white_fill = PatternFill(start_color="FFFFFFFF", end_color="FFFFFFFF", fill_type="solid")
     ws.sheet_view.showGridLines = False  # comme Consolidation : pas de quadrillage Excel par défaut
@@ -661,12 +670,18 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
 
         current_category = object()  # sentinelle : force le 1er bandeau même si catégorie ""
         for item in by_owner[owner_key]:
-            if category_style is not None and item["category"] != current_category:
+            if category_font is not None and item["category"] != current_category:
                 current_category = item["category"]
                 cat_cell = ws.cell(row=r, column=1, value=current_category or "Autres fonds")
+                # Fond repris de la VRAIE ligne de catégorie d'origine dans Consolidation (pas un
+                # modèle unique emprunté à la 1re catégorie trouvée) : Consolidation utilise 2
+                # teintes de beige distinctes selon le niveau d'imbrication.
+                band_fill = copy(item["category_fill"]) if item.get("category_fill") is not None else PatternFill(fill_type=None)
                 for c in range(1, len(headers) + 1):
-                    ws.cell(row=r, column=c)._style = copy(category_style)
-                    ws.cell(row=r, column=c).border = grid_border
+                    cell = ws.cell(row=r, column=c)
+                    cell.font = copy(category_font)
+                    cell.fill = copy(band_fill)
+                    cell.border = grid_border
                 cat_cell.alignment = Alignment(vertical="center")
                 ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=len(headers))
                 ws.row_dimensions[r].height = 20
@@ -766,9 +781,11 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
                 f'TRUE(),"")'
             )
             pen_cell = ws[f"I{r}"]
-            # Une formule Excel ne peut jamais renvoyer un texte enrichi (gras partiel) : tout ce
-            # qu'affiche cette cellule (message de pénalité ou de fermeture) est mis en gras en bloc.
-            pen_cell.font = bold_data_font
+            # Pas de gras ici : une formule Excel ne peut jamais renvoyer un texte à mise en forme
+            # mixte (gras partiel) — seule une partie précise du message doit être en gras (ex.
+            # "aucun rachat possible.") selon la maquette fournie, ce qu'une formule ne peut pas
+            # produire seule. En attente d'une décision sur l'approche (colonne séparée, etc.).
+            pen_cell.font = data_font
             pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             # Hauteur de 60pt par défaut (confortable pour l'immense majorité des messages, 2-3
             # lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
@@ -864,11 +881,11 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     cash_range = f"'{exit_sheet_name}'!$H${first_data_row}:$H${last_data_row}"
     pen_range = f"'{exit_sheet_name}'!$I${first_data_row}:$I${last_data_row}"
 
-    # Style de bandeau de catégorie (fond beige) : repris de la colonne A de la 1re catégorie
-    # trouvée, pour prolonger ce même bandeau sur les 2 nouvelles colonnes plutôt que de laisser
-    # un "trou" blanc à chaque ligne de catégorie.
-    category_rows, fund_rows, _ = classify_rows(src_ws, header_row, total_col)
-    category_fill = copy(src_ws.cell(row=category_rows[0], column=1).fill) if category_rows else None
+    # Style de bandeau de catégorie (fond beige) : Consolidation utilise 2 teintes de beige
+    # distinctes selon le niveau d'imbrication (ex. catégorie principale en beige foncé,
+    # sous-catégorie en beige clair) — on reprend donc le fond de CHAQUE ligne de catégorie
+    # individuellement, pas un seul modèle emprunté à la 1re catégorie trouvée.
+    category_rows, fund_rows, _, _ = classify_rows(src_ws, header_row, total_col)
 
     # cash_col/pen_col occupent une position de colonne qui existait déjà dans le fichier
     # d'origine (juste après la dernière colonne utile, ou l'ancien emplacement de "Mouvements en
@@ -891,10 +908,10 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     # un "trou" dans les 2 nouvelles colonnes, puisque Consolidation liste l'univers complet des
     # fonds, pas seulement ceux de ce client.
     for r in category_rows:
+        row_fill = copy(src_ws.cell(row=r, column=1).fill)
         for col in (cash_col, pen_col):
             cell = src_ws.cell(row=r, column=col)
-            if category_fill is not None:
-                cell.fill = copy(category_fill)
+            cell.fill = copy(row_fill)
             cell.border = grid_border
     for r in fund_rows:
         for col in (cash_col, pen_col):
@@ -917,9 +934,9 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         cash_cell.alignment = Alignment(horizontal="center", vertical="center")
 
         pen_cell = src_ws.cell(row=r, column=pen_col, value=f"=IFERROR(INDEX({pen_range},MATCH({b},{isin_range},0)),\"\")")
-        # Une formule Excel ne peut jamais renvoyer un texte enrichi (gras partiel) : tout ce
-        # qu'affiche cette cellule (message de pénalité ou de fermeture) est mis en gras en bloc.
-        pen_cell.font = bold_data_font
+        # Pas de gras ici (cf. commentaire dans build_exit_sheet) : en attente d'une décision sur
+        # la mise en forme, une formule Excel ne pouvant pas produire un gras partiel toute seule.
+        pen_cell.font = data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
         # Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce

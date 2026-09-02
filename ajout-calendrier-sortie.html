@@ -11281,7 +11281,12 @@ window.FUNDS_DATA = {
     const categoryRows = [];
     const fundRows = [];
     const rowToCategory = {};
+    // Fond (beige clair ou foncé selon le niveau d'imbrication de LA catégorie) de la ligne de
+    // catégorie la plus proche au-dessus de chaque fonds — pour pouvoir reproduire fidèlement la
+    // même teinte ailleurs (Consolidation utilise 2 teintes de beige distinctes selon le niveau).
+    const rowToCategoryFill = {};
     let currentCategory = null;
+    let currentCategoryFill = null;
     const lastRow = ws.actualRowCount || ws.rowCount;
     // headerRow+1 = ligne de total général (pas une catégorie, pas un fonds) -> ignorée
     for (let r = headerRow + 2; r <= lastRow; r++) {
@@ -11290,13 +11295,15 @@ window.FUNDS_DATA = {
       if (isSolidBold(a)) {
         categoryRows.push(r);
         currentCategory = String(a.value).trim();
+        currentCategoryFill = JSON.parse(JSON.stringify(a.style.fill || {}));
       } else {
         if (totalCol && !isSumTotal(ws.getCell(r, totalCol).value)) continue;
         fundRows.push(r);
         rowToCategory[r] = currentCategory;
+        rowToCategoryFill[r] = currentCategoryFill;
       }
     }
-    return { categoryRows, fundRows, rowToCategory };
+    return { categoryRows, fundRows, rowToCategory, rowToCategoryFill };
   }
 
   /** Dernière colonne portant un intitulé sur la ligne d'en-tête (pour savoir où ajouter des
@@ -11446,7 +11453,7 @@ window.FUNDS_DATA = {
     //    Madame, chacun via son propre contrat) donne une ligne par titulaire, pour permettre une
     //    date d'investissement et un statut de pénalité propres à chacun.
     const totalCol = findTotalColumn(srcWs, headerRow);
-    const { fundRows, rowToCategory } = classifyRows(srcWs, headerRow, totalCol);
+    const { fundRows, rowToCategory, rowToCategoryFill } = classifyRows(srcWs, headerRow, totalCol);
     const ownerLabels = detectOwnerLabels(srcWs, headerRow, totalCol);
 
     const selected = [];
@@ -11460,6 +11467,7 @@ window.FUNDS_DATA = {
       if (!fund || !(isFerme || hasRachatCalendar(calendar, isin))) return;
       const nom = srcWs.getCell(srcRow, 1).value || fund.nom;
       const category = rowToCategory[srcRow] || "";
+      const categoryFill = rowToCategoryFill[srcRow] || null;
       // Seuls les fonds à règle de pénalité datée (seuil/soft/dégressif) ont besoin d'une date
       // d'investissement pour statuer : "aucune"/"inconnue"/"manuel"/"ferme" ne dépendent pas de
       // la date. C'est cette liste-là qu'on demandera au conseiller de renseigner.
@@ -11468,7 +11476,7 @@ window.FUNDS_DATA = {
       holdingByOwner(srcWs, srcRow, totalCol, ownerLabels).forEach(([owner, amount]) => {
         const isHeld = amount === null || Math.abs(amount) > 0.005;
         if (!isHeld) return;
-        selected.push({ isin, nom, category, owner, amount, needsDate, penalite: fund.penalite });
+        selected.push({ isin, nom, category, categoryFill, owner, amount, needsDate, penalite: fund.penalite });
       });
     });
 
@@ -11600,8 +11608,12 @@ window.FUNDS_DATA = {
         if (categoryStyle && item.category !== currentCategory) {
           currentCategory = item.category;
           ws.getCell(r, 1).value = currentCategory || "Autres fonds";
+          // Fond repris de la VRAIE ligne de catégorie d'origine dans Consolidation (pas un
+          // modèle unique emprunté à la 1re catégorie trouvée) : Consolidation utilise 2 teintes
+          // de beige distinctes selon le niveau d'imbrication, à reproduire fidèlement ici.
+          const bandFill = item.categoryFill || (categoryStyle.fill ? JSON.parse(JSON.stringify(categoryStyle.fill)) : { type: "pattern", pattern: "none" });
           for (let c = 1; c <= headers.length; c++) {
-            ws.getCell(r, c).style = JSON.parse(JSON.stringify(categoryStyle));
+            ws.getCell(r, c).style = { ...JSON.parse(JSON.stringify(categoryStyle)), fill: JSON.parse(JSON.stringify(bandFill)) };
             ws.getCell(r, c).border = gridBorder;
           }
           ws.mergeCells(r, 1, r, headers.length);
@@ -11701,9 +11713,11 @@ window.FUNDS_DATA = {
           `TRUE(),"")`
         );
         const penCell = ws.getCell(`I${r}`);
-        // Une formule Excel ne peut jamais renvoyer un texte enrichi (gras partiel) : tout ce
-        // qu'affiche cette cellule (message de pénalité ou de fermeture) est mis en gras en bloc.
-        penCell.font = boldDataFont;
+        // Pas de gras ici : une formule Excel ne peut jamais renvoyer un texte à mise en forme
+        // mixte (gras partiel) — seule une partie précise du message doit être en gras (ex.
+        // "aucun rachat possible.") selon la maquette fournie, ce qu'une formule ne peut pas
+        // produire seule. En attente d'une décision sur l'approche (colonne séparée, etc.).
+        penCell.font = dataFont;
         penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
         // Hauteur de 60pt par défaut (confortable pour l'immense majorité des messages, 2-3
         // lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
@@ -11909,11 +11923,12 @@ window.FUNDS_DATA = {
     const cashRange = `'${exitSheetName}'!$H$${firstDataRow}:$H$${lastDataRow}`;
     const penRange = `'${exitSheetName}'!$I$${firstDataRow}:$I$${lastDataRow}`;
 
-    // Style de bandeau de catégorie (fond beige) : repris de la colonne A de la 1re catégorie
-    // trouvée, pour prolonger ce même bandeau sur les 2 nouvelles colonnes plutôt que de laisser
-    // un "trou" blanc à chaque ligne de catégorie.
+    // Style de bandeau de catégorie (fond beige) : Consolidation utilise 2 teintes de beige
+    // distinctes selon le niveau d'imbrication (ex. "Private Equity" en beige foncé, une
+    // sous-catégorie en beige clair) — on reprend donc le fond de CHAQUE ligne de catégorie
+    // individuellement (pas un seul modèle emprunté à la 1re catégorie trouvée et réappliqué
+    // partout), pour prolonger fidèlement ces 2 teintes sur les 2 nouvelles colonnes.
     const { categoryRows, fundRows } = classifyRows(srcWs, headerRow, totalCol);
-    const categoryFill = categoryRows.length ? JSON.parse(JSON.stringify(srcWs.getCell(categoryRows[0], 1).style.fill || {})) : null;
 
     // cashCol/penCol occupent une position de colonne qui existait déjà dans le fichier d'origine
     // (juste après la dernière colonne utile, ou l'ancien emplacement de "Mouvements en cours") :
@@ -11944,12 +11959,10 @@ window.FUNDS_DATA = {
     // catégorie voisine avec laquelle ExcelJS aurait fait partager un même objet de style au
     // chargement du fichier d'origine.
     categoryRows.forEach((r) => {
+      const rowFill = JSON.parse(JSON.stringify(srcWs.getCell(r, 1).style.fill || { type: "pattern", pattern: "none" }));
       [cashCol, penCol].forEach((col) => {
         const cell = srcWs.getCell(r, col);
-        cell.style = {
-          fill: categoryFill ? JSON.parse(JSON.stringify(categoryFill)) : { type: "pattern", pattern: "none" },
-          border: gridBorder,
-        };
+        cell.style = { fill: JSON.parse(JSON.stringify(rowFill)), border: gridBorder };
       });
     });
     fundRows.forEach((r) => {
@@ -11976,9 +11989,9 @@ window.FUNDS_DATA = {
 
       setF(srcWs, `${colLetter(penCol)}${r}`, `IFERROR(INDEX(${penRange},MATCH(${b},${isinRange},0)),"")`);
       const penCell = srcWs.getCell(r, penCol);
-      // Une formule Excel ne peut jamais renvoyer un texte enrichi (gras partiel) : tout ce
-      // qu'affiche cette cellule (message de pénalité ou de fermeture) est mis en gras en bloc.
-      penCell.font = boldDataFont;
+      // Pas de gras ici (cf. commentaire dans buildExitSheet) : en attente d'une décision sur la
+      // mise en forme, une formule Excel ne pouvant pas produire un gras partiel toute seule.
+      penCell.font = dataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
 
       // Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce
