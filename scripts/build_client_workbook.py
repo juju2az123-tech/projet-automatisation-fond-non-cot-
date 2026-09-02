@@ -45,6 +45,7 @@ from pathlib import Path
 import openpyxl
 from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
+from openpyxl.comments import Comment
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -528,6 +529,33 @@ def has_rachat_calendar(calendar, isin):
     return bool(by_type and (by_type.get("Rachat") or by_type.get("Souscription et rachat")))
 
 
+def rachat_entries(calendar, isin):
+    """Toutes les échéances Rachat connues pour ce fonds (types "Rachat" et "Souscription et
+    rachat" combinés — même expansion que write_bdd_calendrier)."""
+    by_type = calendar.get(isin) if isin else None
+    if not by_type:
+        return []
+    entries = list(by_type.get("Rachat") or []) + list(by_type.get("Souscription et rachat") or [])
+    return [e for e in entries if e.get("cutoff")]
+
+
+def calendar_fallback_info(calendar, isin, ref_date_iso):
+    """Si le calendrier officiel de ce fonds ne couvre plus la date de référence (aucune échéance
+    Rachat à venir), la formule Excel (MAXIFS, cf. plus bas) retombe automatiquement sur la
+    dernière échéance connue — ce qui revient à réutiliser le calendrier de l'année précédente en
+    l'absence d'un calendrier plus récent publié par le fonds. Cette fonction ne fait que DÉTECTER
+    ce cas au moment de la génération (mêmes données que la formule), pour savoir s'il faut poser
+    une annotation Excel sur la cellule — un commentaire Excel ne peut pas être posé
+    conditionnellement par une formule, il doit être écrit à la génération."""
+    entries = rachat_entries(calendar, isin)
+    if not entries:
+        return None
+    if any(e["cutoff"] >= ref_date_iso for e in entries):
+        return None
+    latest = max(entries, key=lambda e: e["cutoff"])
+    return {"year": int(latest["cutoff"][:4])}
+
+
 def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_isin, ref_date_iso=None):
     def cal(col):
         return f"BDD_Calendrier!${col}$2:${col}${cal_last_row}"
@@ -547,6 +575,10 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     # (formule =TODAY() toujours à jour, pas de bandeau), plutôt que de figer une date qui
     # deviendrait fausse dès le lendemain.
     is_simulating = bool(ref_date_iso) and ref_date_iso != datetime.date.today().isoformat()
+    # Même date, en ISO "AAAA-MM-JJ", pour comparer aux échéances du calendrier au moment de la
+    # génération (voir calendar_fallback_info plus bas) — distinct de RD/ref_date_iso qui, eux,
+    # pilotent les formules Excel elles-mêmes.
+    effective_ref_date_iso = ref_date_iso if is_simulating else datetime.date.today().isoformat()
 
     ws = wb.create_sheet("Calendrier de sortie")
     wb._sheets.remove(ws)
@@ -782,7 +814,17 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             # vérification "=0" ci-dessous, Excel afficherait ce 0 comme une date, "00/01/1900",
             # au lieu de laisser la cellule vide.
             next_cutoff_expr = f'_xlfn.MINIFS({cal("D")},{cal("A")},{b},{cal("C")},"Rachat",{cal("D")},">="&{RD}$1)'
-            ws[f"{M}{r}"] = f'=IF({L}{r}=0,"",IFERROR(IF({next_cutoff_expr}=0,"",{next_cutoff_expr}),""))'
+            # Si le calendrier officiel de ce fonds ne va pas jusqu'à la date de référence (aucune
+            # échéance à venir), on retombe sur la DERNIÈRE échéance connue (MAXIFS, sans filtre
+            # de date) plutôt que de laisser la cellule vide — en pratique, la dernière année pour
+            # laquelle le fonds a publié un calendrier. Une annotation Excel signale ce cas
+            # (cf. calendar_fallback_info/cell.comment plus bas), pour que le conseiller sache que
+            # ces dates sont reprises d'une année passée, pas celles de l'année en cours.
+            fallback_cutoff_expr = f'_xlfn.MAXIFS({cal("D")},{cal("A")},{b},{cal("C")},"Rachat")'
+            ws[f"{M}{r}"] = (
+                f'=IF({L}{r}=0,"",IFERROR(IF({next_cutoff_expr}<>0,{next_cutoff_expr},'
+                f'IF({fallback_cutoff_expr}<>0,{fallback_cutoff_expr},"")),""))'
+            )
             # VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS
             # avec une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une
             # reconstruction de clé texte + MATCH, plus fragile) — même mécanisme que {M}
@@ -825,6 +867,18 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
                 cell.number_format = "dd/mm/yyyy"
                 cell.font = data_font
                 cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            # Un commentaire Excel ne peut pas être posé conditionnellement par une formule (il
+            # est statique) : on détecte donc ici si le fallback MAXIFS ci-dessus a dû être
+            # utilisé (mêmes données que la formule, mais calculées côté génération), pour annoter
+            # la date de rachat affichée avec l'année réelle du calendrier utilisé.
+            fallback_info = calendar_fallback_info(calendar, isin, effective_ref_date_iso)
+            if fallback_info:
+                ws[f"D{r}"].comment = Comment(
+                    "Calendrier de rachat non mis à jour pour cette date : dates reprises du "
+                    f"dernier calendrier connu (calendrier pris sur l'année {fallback_info['year']}).",
+                    "Althos",
+                )
 
             # Pénalité de sortie : vide dès qu'il n'y a rien d'actionnable à signaler — pas de
             # pénalité prévue pour ce fonds (kind="aucune"), aucune pénalité renseignée dans la

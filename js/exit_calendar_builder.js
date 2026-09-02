@@ -455,6 +455,31 @@
     return !!(byType && (byType["Rachat"] || byType["Souscription et rachat"]));
   }
 
+  /** Toutes les échéances Rachat connues pour ce fonds (types "Rachat" et "Souscription et
+   *  rachat" combinés — même expansion que writeBddCalendrier). */
+  function rachatEntries(calendar, isin) {
+    const byType = calendar[isin];
+    if (!byType) return [];
+    return (byType["Rachat"] || []).concat(byType["Souscription et rachat"] || []).filter((e) => e.cutoff);
+  }
+
+  /** Si le calendrier officiel de ce fonds ne couvre plus la date de référence (aucune échéance
+   *  Rachat à venir), la formule Excel (MAXIFS, cf. plus bas) retombe automatiquement sur la
+   *  dernière échéance connue — ce qui revient à réutiliser le calendrier de l'année précédente
+   *  en l'absence d'un calendrier plus récent publié par le fonds. Cette fonction ne fait que
+   *  DÉTECTER ce cas au moment de la génération (en JS, sur les mêmes données), pour savoir s'il
+   *  faut poser une annotation Excel sur la cellule — un commentaire Excel ne peut pas être posé
+   *  conditionnellement par une formule, il doit être écrit à la génération. */
+  function calendarFallbackInfo(calendar, isin, refDate) {
+    const entries = rachatEntries(calendar, isin);
+    if (!entries.length) return null;
+    const hasUpcoming = entries.some((e) => new Date(`${e.cutoff}T00:00:00Z`) >= refDate);
+    if (hasUpcoming) return null;
+    let latest = entries[0];
+    entries.forEach((e) => { if (e.cutoff > latest.cutoff) latest = e; });
+    return { year: new Date(`${latest.cutoff}T00:00:00Z`).getUTCFullYear() };
+  }
+
   function buildExitSheet(workbook, srcWs, headerRow, calendar, calLastRow, penLastRow, fundsByIsin, refDateIso) {
     const cal = (col) => `BDD_Calendrier!$${col}$2:$${col}$${calLastRow}`;
     const pen = (col) => `BDD_Penalites!$${col}$2:$${col}$${penLastRow}`;
@@ -474,6 +499,10 @@
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     })();
     const isSimulating = !!(refDateIso && refDateIso !== todayIso);
+    // Même date, en objet Date (UTC), pour comparer aux échéances du calendrier en JS au moment
+    // de la génération (voir calendarFallbackInfo plus bas) — distinct de RD/refDateIso qui,
+    // eux, pilotent les formules Excel elles-mêmes.
+    const effectiveRefDate = isSimulating ? new Date(`${refDateIso}T00:00:00Z`) : new Date();
 
     const ws = workbook.addWorksheet("Calendrier de sortie");
     // Quadrillage Excel par défaut désactivé, comme sur Consolidation : sans ça, le fond gris
@@ -730,7 +759,15 @@
         // la cellule vide.
         {
           const nextCutoffExpr = `_xlfn.MINIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},">="&${RD}$1)`;
-          setF(ws, `${M}${r}`, `IF(${L}${r}=0,"",IFERROR(IF(${nextCutoffExpr}=0,"",${nextCutoffExpr}),""))`);
+          // Si le calendrier officiel de ce fonds ne va pas jusqu'à la date de référence (aucune
+          // échéance à venir), on retombe sur la DERNIÈRE échéance connue (MAXIFS, sans filtre de
+          // date) plutôt que de laisser la cellule vide — en pratique, la dernière année pour
+          // laquelle le fonds a publié un calendrier. Une annotation Excel signale ce cas
+          // (cf. calendarFallbackInfo/cell.note plus bas), pour que le conseiller sache que ces
+          // dates sont reprises d'une année passée, pas celles de l'année en cours.
+          const fallbackCutoffExpr = `_xlfn.MAXIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Rachat")`;
+          setF(ws, `${M}${r}`,
+            `IF(${L}${r}=0,"",IFERROR(IF(${nextCutoffExpr}<>0,${nextCutoffExpr},IF(${fallbackCutoffExpr}<>0,${fallbackCutoffExpr},"")),""))`);
         }
         // VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS avec
         // une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une reconstruction de
@@ -772,6 +809,17 @@
           cell.font = dataFont;
           cell.alignment = { horizontal: "center", vertical: "middle" };
         });
+
+        // Un commentaire Excel ne peut pas être posé conditionnellement par une formule (il est
+        // statique) : on détecte donc ici, en JS, si le fallback MAXIFS ci-dessus a dû être
+        // utilisé (mêmes données que la formule, mais calculées côté génération), pour annoter la
+        // date de rachat affichée avec l'année réelle du calendrier utilisé.
+        const fallbackInfo = calendarFallbackInfo(calendar, item.isin, effectiveRefDate);
+        if (fallbackInfo) {
+          ws.getCell(`D${r}`).note =
+            `Calendrier de rachat non mis à jour pour cette date : dates reprises du dernier ` +
+            `calendrier connu (calendrier pris sur l'année ${fallbackInfo.year}).`;
+        }
 
         // Pénalité de sortie : vide dès qu'il n'y a rien d'actionnable à signaler — pas de
         // pénalité prévue pour ce fonds (kind="aucune"), aucune pénalité renseignée dans la base

@@ -159,10 +159,15 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    date du jour** au moment de l'ouverture (ou de la date de retrait simulée si l'étape 0
    ci-dessous a été utilisée). Si un fonds a bien des échéances de rachat connues dans la base mais
    qu'aucune n'est encore à venir par rapport à cette date (calendrier officiel qui ne couvre pas
-   assez loin dans le temps — typique d'une simulation à une date très éloignée), la colonne
-   Pénalité de sortie l'indique explicitement (« Calendrier de rachat non disponible pour cette
-   date : le calendrier officiel doit être mis à jour. ») plutôt que de laisser les colonnes de
-   rachat silencieusement vides ou d'afficher une date invalide (« 00/01/1900 »).
+   assez loin dans le temps — typique d'une simulation à une date très éloignée, ou simplement un
+   fonds dont le calendrier de l'année en cours n'est pas encore publié), les 5 colonnes de rachat
+   reprennent automatiquement la **dernière échéance connue** (le calendrier de l'année précédente
+   la plus récente disponible dans la base) plutôt que de rester vides ou d'afficher une date
+   invalide (« 00/01/1900 ») — avec un **commentaire Excel** (icône rouge, au survol) sur la
+   cellule « Rachat — ordre avant » précisant explicitement l'année d'où ces dates sont reprises
+   (« calendrier pris sur l'année 2025 », ou l'année correspondante), pour que le conseiller sache
+   que ces dates sont une estimation basée sur l'an dernier, pas le calendrier officiel de l'année
+   demandée.
 
 **Simuler une date de retrait future (optionnel)** : avant de déposer le fichier, le conseiller
 peut renseigner un champ « Simuler une date de retrait future » sur la page. Si le client demande
