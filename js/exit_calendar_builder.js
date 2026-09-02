@@ -262,7 +262,28 @@
    * chaque ligne fonds le libellé de la dernière catégorie (bandeau) rencontrée au-dessus d'elle,
    * pour pouvoir reproduire les mêmes bandeaux de catégorie dans la feuille générée.
    */
-  function classifyRows(ws, headerRow) {
+  /** Vrai si `v` (valeur d'une cellule TOTAL) correspond à une vraie agrégation de fonds —
+   *  =SUM(...) sur ses colonnes de contrat, ou un nombre déjà calculé — plutôt qu'une simple
+   *  formule de renvoi vers une autre cellule (=A8, =IFERROR(U312,"/")...), utilisée par certains
+   *  petits tableaux récapitulatifs hors-tableau plus bas sur la feuille ("dont actions
+   *  européennes : 15 %"...) qui ne sont PAS des lignes de fonds malgré un texte en colonne A. */
+  function isSumTotal(v) {
+    if (typeof v === "number") return true;
+    if (typeof v === "string") return /^=?SUM\(/i.test(v.trim());
+    if (v && typeof v === "object") {
+      if (typeof v.formula === "string") return /^SUM\(/i.test(v.formula.trim());
+      // Cellule "esclave" d'une formule partagée (Excel factorise le texte d'une formule
+      // identique recopiée sur toute une colonne — ExcelJS ne porte alors le texte que sur la
+      // cellule maîtresse). Comme la colonne TOTAL n'est JAMAIS que des =SUM(...) recopiées
+      // (jamais un renvoi de cellule ponctuel comme "=A8", qui ne serait de toute façon jamais
+      // reconnu "partageable" par Excel avec une plage =SUM contiguë), une cellule esclave ici
+      // est nécessairement, elle aussi, une vraie agrégation.
+      if (typeof v.sharedFormula === "string") return true;
+    }
+    return false;
+  }
+
+  function classifyRows(ws, headerRow, totalCol) {
     const categoryRows = [];
     const fundRows = [];
     const rowToCategory = {};
@@ -276,6 +297,7 @@
         categoryRows.push(r);
         currentCategory = String(a.value).trim();
       } else {
+        if (totalCol && !isSumTotal(ws.getCell(r, totalCol).value)) continue;
         fundRows.push(r);
         rowToCategory[r] = currentCategory;
       }
@@ -430,7 +452,7 @@
     //    Madame, chacun via son propre contrat) donne une ligne par titulaire, pour permettre une
     //    date d'investissement et un statut de pénalité propres à chacun.
     const totalCol = findTotalColumn(srcWs, headerRow);
-    const { fundRows, rowToCategory } = classifyRows(srcWs, headerRow);
+    const { fundRows, rowToCategory } = classifyRows(srcWs, headerRow, totalCol);
     const ownerLabels = detectOwnerLabels(srcWs, headerRow, totalCol);
 
     const selected = [];
@@ -488,12 +510,13 @@
     const baseFontName = (headerStyle.font && headerStyle.font.name) || "Calibri";
     const baseFontSize = (headerStyle.font && headerStyle.font.size) || 10;
     const dataFont = { name: baseFontName, size: baseFontSize, bold: false };
+    const boldDataFont = { name: baseFontName, size: baseFontSize, bold: true };
 
     const titleStyle = cloneStyle(srcWs.getCell(1, 1));
     const subtitleStyle = cloneStyle(srcWs.getCell(3, 1));
     // Style de bandeau de catégorie : repris tel quel de la première ligne de catégorie trouvée
     // dans la Consolidation (même couleur beige, même police en gras).
-    const { categoryRows } = classifyRows(srcWs, headerRow);
+    const { categoryRows } = classifyRows(srcWs, headerRow, totalCol);
     const categoryStyle = categoryRows.length ? cloneStyle(srcWs.getCell(categoryRows[0], 1)) : null;
     const gridBorder = buildGridBorder(srcWs, headerRow);
 
@@ -684,7 +707,9 @@
           `TRUE(),"")`
         );
         const penCell = ws.getCell(`I${r}`);
-        penCell.font = dataFont;
+        // Une formule Excel ne peut jamais renvoyer un texte enrichi (gras partiel) : tout ce
+        // qu'affiche cette cellule (message de pénalité ou de fermeture) est mis en gras en bloc.
+        penCell.font = boldDataFont;
         penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
         // Hauteur de 60pt par défaut (confortable pour l'immense majorité des messages, 2-3
         // lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
@@ -860,6 +885,7 @@
     const baseFontName = (headerStyle.font && headerStyle.font.name) || "Calibri";
     const baseFontSize = (headerStyle.font && headerStyle.font.size) || 10;
     const dataFont = { name: baseFontName, size: baseFontSize, bold: false };
+    const boldDataFont = { name: baseFontName, size: baseFontSize, bold: true };
     const twoRowHeader = hasTwoRowHeader(srcWs, headerRow, 1);
     const gridBorder = buildGridBorder(srcWs, headerRow);
     const PENALTY_COL_WIDTH = 63; // même largeur que sur "Calendrier de sortie", pour un rendu cohérent
@@ -892,22 +918,51 @@
     // Style de bandeau de catégorie (fond beige) : repris de la colonne A de la 1re catégorie
     // trouvée, pour prolonger ce même bandeau sur les 2 nouvelles colonnes plutôt que de laisser
     // un "trou" blanc à chaque ligne de catégorie.
-    const { categoryRows, fundRows } = classifyRows(srcWs, headerRow);
+    const { categoryRows, fundRows } = classifyRows(srcWs, headerRow, totalCol);
     const categoryFill = categoryRows.length ? JSON.parse(JSON.stringify(srcWs.getCell(categoryRows[0], 1).style.fill || {})) : null;
 
-    // Le quadrillage doit courir sans interruption sur TOUTE la hauteur du tableau (catégories
-    // ET fonds, détenus ou non) — sinon chaque fonds non détenu par ce client laisse un "trou"
-    // dans les 2 nouvelles colonnes, puisque Consolidation liste l'univers complet des fonds, pas
-    // seulement ceux de ce client.
+    // cashCol/penCol occupent une position de colonne qui existait déjà dans le fichier d'origine
+    // (juste après la dernière colonne utile, ou l'ancien emplacement de "Mouvements en cours") :
+    // ses cellules peuvent donc porter un fond/quadrillage hérité du fichier client (ex. un
+    // second petit tableau récapitulatif de répartition, hors du tableau principal, plus bas sur
+    // la feuille). On repart d'une ardoise vierge sur toute la hauteur avant de ne redessiner que
+    // les lignes catégorie/fonds du VRAI tableau, pour ne jamais laisser un bloc beige résiduel
+    // sans quadrillage.
+    const lastSheetRow = srcWs.actualRowCount || srcWs.rowCount;
+    const clearFromRow = headerRow + (twoRowHeader ? 2 : 1); // ne jamais effacer la 2e ligne d'un en-tête fusionné sur 2 lignes
+    for (let r = clearFromRow; r <= lastSheetRow; r++) {
+      [cashCol, penCol].forEach((col) => {
+        const cell = srcWs.getCell(r, col);
+        // Réassigne l'objet `.style` en entier (pas `cell.fill = ...` isolément) : ExcelJS peut
+        // faire partager le même objet de style, en interne, par plusieurs cellules ayant un
+        // style identique au chargement — muter une seule propriété dessus contaminerait alors
+        // silencieusement d'autres cellules (cf. le commentaire de cloneStyle plus haut).
+        cell.style = { fill: { type: "pattern", pattern: "none" }, border: {} };
+      });
+    }
+
+    // Le quadrillage doit courir sans interruption sur TOUTE la hauteur du VRAI tableau
+    // (catégories ET fonds, détenus ou non) — sinon chaque fonds non détenu par ce client laisse
+    // un "trou" dans les 2 nouvelles colonnes, puisque Consolidation liste l'univers complet des
+    // fonds, pas seulement ceux de ce client.
+    // Réassigne `.style` en entier ici aussi (même raison que la boucle de nettoyage ci-dessus) :
+    // sans ça, une ligne de fonds pourrait hériter par contamination le fond beige d'une ligne de
+    // catégorie voisine avec laquelle ExcelJS aurait fait partager un même objet de style au
+    // chargement du fichier d'origine.
     categoryRows.forEach((r) => {
       [cashCol, penCol].forEach((col) => {
         const cell = srcWs.getCell(r, col);
-        if (categoryFill) cell.fill = JSON.parse(JSON.stringify(categoryFill));
-        cell.border = gridBorder;
+        cell.style = {
+          fill: categoryFill ? JSON.parse(JSON.stringify(categoryFill)) : { type: "pattern", pattern: "none" },
+          border: gridBorder,
+        };
       });
     });
     fundRows.forEach((r) => {
-      [cashCol, penCol].forEach((col) => { srcWs.getCell(r, col).border = gridBorder; });
+      [cashCol, penCol].forEach((col) => {
+        const cell = srcWs.getCell(r, col);
+        cell.style = { fill: { type: "pattern", pattern: "none" }, border: gridBorder };
+      });
     });
 
     fundRows.forEach((r) => {
@@ -922,12 +977,14 @@
       setF(srcWs, `${colLetter(cashCol)}${r}`, `IFERROR(INDEX(${cashRange},MATCH(${b},${isinRange},0)),"")`);
       const cashCell = srcWs.getCell(r, cashCol);
       cashCell.numFmt = "dd/mm/yyyy";
-      cashCell.font = dataFont;
+      cashCell.font = boldDataFont;
       cashCell.alignment = { horizontal: "center", vertical: "middle" };
 
       setF(srcWs, `${colLetter(penCol)}${r}`, `IFERROR(INDEX(${penRange},MATCH(${b},${isinRange},0)),"")`);
       const penCell = srcWs.getCell(r, penCol);
-      penCell.font = dataFont;
+      // Une formule Excel ne peut jamais renvoyer un texte enrichi (gras partiel) : tout ce
+      // qu'affiche cette cellule (message de pénalité ou de fermeture) est mis en gras en bloc.
+      penCell.font = boldDataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
 
       // Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce

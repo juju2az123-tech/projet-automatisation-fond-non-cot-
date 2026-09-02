@@ -107,9 +107,16 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    première trouvée ; le détail par titulaire reste dans l'autre feuille. Colonne Pénalité de
    sortie large exprès, quadrillage complet (même couleur reprise de Consolidation) et hauteur de
    ligne calculée par fonds — exactement comme sur « Calendrier de sortie » (voir plus haut). Le
-   quadrillage court sans interruption sur toute la hauteur du tableau (catégories et fonds,
-   détenus ou non par ce client — Consolidation liste l'univers complet des fonds), et le bandeau
-   de titre tout en haut est étendu pour couvrir les 2 nouvelles colonnes.
+   quadrillage court sans interruption sur toute la hauteur du VRAI tableau de fonds (catégories
+   et fonds, détenus ou non par ce client — Consolidation liste l'univers complet des fonds), sans
+   déborder sur un éventuel petit tableau récapitulatif hors-tableau plus bas sur la feuille (ex.
+   « dont actions européennes : 15 % ») : une ligne n'y est traitée comme une vraie ligne de fonds
+   que si sa colonne TOTAL porte une vraie agrégation (=SUM(...) sur ses colonnes de contrat), pas
+   un simple renvoi vers une autre cellule. Le bandeau de titre tout en haut est étendu pour
+   couvrir les 2 nouvelles colonnes. Les dates de la colonne « Rachat — cash reçu » et le texte de
+   la colonne « Pénalité de sortie » (sur les deux feuilles) sont en gras — une formule Excel ne
+   pouvant jamais renvoyer un texte à mise en forme mixte (gras partiel), c'est tout le contenu de
+   la cellule qui est mis en gras en bloc plutôt qu'une phrase seule.
 3. **Si des fonds détenus ont une pénalité de sortie qui dépend d'une date d'investissement**
    (règle à seuil, soft lock-up ou dégressive), la page affiche directement une liste de ces
    fonds avec un champ de saisie par fonds — le conseiller renseigne les dates connues sans

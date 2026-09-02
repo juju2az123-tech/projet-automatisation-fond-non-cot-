@@ -261,7 +261,20 @@ def has_two_row_header(ws, header_row, col):
     return False
 
 
-def classify_rows(ws, header_row):
+def _is_sum_total(v):
+    """Vrai si `v` (valeur d'une cellule TOTAL) correspond à une vraie agrégation de fonds —
+    =SUM(...) sur ses colonnes de contrat, ou un nombre déjà calculé — plutôt qu'une simple
+    formule de renvoi vers une autre cellule (=A8, =IFERROR(U312,"/")...), utilisée par certains
+    petits tableaux récapitulatifs hors-tableau plus bas sur la feuille ("dont actions
+    européennes : 15 %"...) qui ne sont PAS des lignes de fonds malgré un texte en colonne A."""
+    if isinstance(v, (int, float)):
+        return True
+    if isinstance(v, str):
+        return v.strip().upper().lstrip("=").startswith("SUM(")
+    return False
+
+
+def classify_rows(ws, header_row, total_col=None):
     """Une ligne de catégorie (bandeau) est en gras + fond uni, sans ISIN en colonne B.
 
     Associe aussi à chaque ligne fonds le libellé de la dernière catégorie rencontrée
@@ -280,6 +293,8 @@ def classify_rows(ws, header_row):
             cat_rows.append(r)
             current_category = str(a.value).strip()
         else:
+            if total_col and not _is_sum_total(ws.cell(row=r, column=total_col).value):
+                continue
             fund_rows.append(r)
             row_to_category[r] = current_category
     return cat_rows, fund_rows, row_to_category
@@ -501,7 +516,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     if header_row is None:
         raise ValueError('En-tête "Support" introuvable dans les 15 premières lignes de la feuille Consolidation.')
     total_col = find_total_column(src_ws, header_row)
-    cat_rows, fund_rows, row_to_category = classify_rows(src_ws, header_row)
+    cat_rows, fund_rows, row_to_category = classify_rows(src_ws, header_row, total_col)
     owner_labels = detect_owner_labels(src_ws, header_row, total_col)
 
     # Fonds détenus (répartis par titulaire de contrat) ET dotés d'un calendrier de RACHAT connu.
@@ -558,6 +573,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     header_style = copy(src_ws.cell(row=header_row, column=1)._style)  # navy header (theme1)
     header_font = src_ws.cell(row=header_row, column=1).font
     data_font = Font(name=header_font.name, size=header_font.size, bold=False)
+    bold_data_font = Font(name=header_font.name, size=header_font.size, bold=True)
 
     title_style = copy(src_ws.cell(row=1, column=1)._style)
     subtitle_style = copy(src_ws.cell(row=3, column=1)._style)
@@ -750,7 +766,9 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
                 f'TRUE(),"")'
             )
             pen_cell = ws[f"I{r}"]
-            pen_cell.font = data_font
+            # Une formule Excel ne peut jamais renvoyer un texte enrichi (gras partiel) : tout ce
+            # qu'affiche cette cellule (message de pénalité ou de fermeture) est mis en gras en bloc.
+            pen_cell.font = bold_data_font
             pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             # Hauteur de 60pt par défaut (confortable pour l'immense majorité des messages, 2-3
             # lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
@@ -819,6 +837,7 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     header_style = copy(src_ws.cell(row=header_row, column=1)._style)
     header_font = src_ws.cell(row=header_row, column=1).font
     data_font = Font(name=header_font.name, size=header_font.size, bold=False)
+    bold_data_font = Font(name=header_font.name, size=header_font.size, bold=True)
     two_row_header = has_two_row_header(src_ws, header_row, 1)
     grid_border = build_grid_border(src_ws, header_row)
     PENALTY_COL_WIDTH = 63  # même largeur que sur "Calendrier de sortie", pour un rendu cohérent
@@ -848,13 +867,29 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     # Style de bandeau de catégorie (fond beige) : repris de la colonne A de la 1re catégorie
     # trouvée, pour prolonger ce même bandeau sur les 2 nouvelles colonnes plutôt que de laisser
     # un "trou" blanc à chaque ligne de catégorie.
-    category_rows, fund_rows, _ = classify_rows(src_ws, header_row)
+    category_rows, fund_rows, _ = classify_rows(src_ws, header_row, total_col)
     category_fill = copy(src_ws.cell(row=category_rows[0], column=1).fill) if category_rows else None
 
-    # Le quadrillage doit courir sans interruption sur TOUTE la hauteur du tableau (catégories ET
-    # fonds, détenus ou non) — sinon chaque fonds non détenu par ce client laisse un "trou" dans
-    # les 2 nouvelles colonnes, puisque Consolidation liste l'univers complet des fonds, pas
-    # seulement ceux de ce client.
+    # cash_col/pen_col occupent une position de colonne qui existait déjà dans le fichier
+    # d'origine (juste après la dernière colonne utile, ou l'ancien emplacement de "Mouvements en
+    # cours") : ses cellules peuvent donc porter un fond/quadrillage hérité du fichier client (ex.
+    # un second petit tableau récapitulatif de répartition, hors du tableau principal, plus bas
+    # sur la feuille). On repart d'une ardoise vierge sur toute la hauteur avant de ne redessiner
+    # que les lignes catégorie/fonds du VRAI tableau, pour ne jamais laisser un bloc beige
+    # résiduel sans quadrillage.
+    no_fill = PatternFill(fill_type=None)
+    no_border = Border()
+    clear_from_row = header_row + (2 if two_row_header else 1)  # ne jamais effacer la 2e ligne d'un en-tête fusionné sur 2 lignes
+    for r in range(clear_from_row, src_ws.max_row + 1):
+        for col in (cash_col, pen_col):
+            cell = src_ws.cell(row=r, column=col)
+            cell.fill = copy(no_fill)
+            cell.border = copy(no_border)
+
+    # Le quadrillage doit courir sans interruption sur TOUTE la hauteur du VRAI tableau
+    # (catégories ET fonds, détenus ou non) — sinon chaque fonds non détenu par ce client laisse
+    # un "trou" dans les 2 nouvelles colonnes, puisque Consolidation liste l'univers complet des
+    # fonds, pas seulement ceux de ce client.
     for r in category_rows:
         for col in (cash_col, pen_col):
             cell = src_ws.cell(row=r, column=col)
@@ -878,11 +913,13 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         b = f'"{isin}"'
         cash_cell = src_ws.cell(row=r, column=cash_col, value=f"=IFERROR(INDEX({cash_range},MATCH({b},{isin_range},0)),\"\")")
         cash_cell.number_format = "dd/mm/yyyy"
-        cash_cell.font = data_font
+        cash_cell.font = bold_data_font
         cash_cell.alignment = Alignment(horizontal="center", vertical="center")
 
         pen_cell = src_ws.cell(row=r, column=pen_col, value=f"=IFERROR(INDEX({pen_range},MATCH({b},{isin_range},0)),\"\")")
-        pen_cell.font = data_font
+        # Une formule Excel ne peut jamais renvoyer un texte enrichi (gras partiel) : tout ce
+        # qu'affiche cette cellule (message de pénalité ou de fermeture) est mis en gras en bloc.
+        pen_cell.font = bold_data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
         # Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce
