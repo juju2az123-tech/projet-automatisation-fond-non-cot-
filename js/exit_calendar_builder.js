@@ -425,7 +425,7 @@
     "next_pub_sortie", "next_cash_sortie",
     "months_held", "pen_found", "kind", "raw", "duree_vie",
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
-    "rate_now",
+    "rate_now", "ref_date",
   ];
   const HELPER_FIRST_COL = 11; // K (colonnes visibles jusqu'en I : Fonds, ISIN, Date, 5 dates de rachat, Pénalité)
 
@@ -439,9 +439,16 @@
     return !!(byType && (byType["Rachat"] || byType["Souscription et rachat"]));
   }
 
-  function buildExitSheet(workbook, srcWs, headerRow, calendar, calLastRow, penLastRow, fundsByIsin) {
+  function buildExitSheet(workbook, srcWs, headerRow, calendar, calLastRow, penLastRow, fundsByIsin, refDateIso) {
     const cal = (col) => `BDD_Calendrier!$${col}$2:$${col}$${calLastRow}`;
     const pen = (col) => `BDD_Penalites!$${col}$2:$${col}$${penLastRow}`;
+    // Date de référence utilisée à la place de TODAY() dans tous les calculs (durée de détention,
+    // pénalité active, prochaine échéance de rachat) : soit la date du jour (par défaut, formule
+    // toujours à jour à l'ouverture), soit une date de retrait hypothétique choisie par le
+    // conseiller pour simuler "et si le client sortait à telle date future ?". Toujours dans une
+    // cellule dédiée (jamais TODAY() en dur dans les formules) pour que TOUT le tableau — dates de
+    // rachat comprises — se recalcule par rapport à cette même date de référence.
+    const RD = helperCol("ref_date");
 
     const ws = workbook.addWorksheet("Calendrier de sortie");
     // Quadrillage Excel par défaut désactivé, comme sur Consolidation : sans ça, le fond gris
@@ -451,6 +458,14 @@
     // <sheetView view="pageBreakPreview">), comme sur Consolidation : c'est ce qui affiche
     // automatiquement le contour bleu de la zone d'impression en vue Normale.
     ws.views = [{ showGridLines: false, style: "pageBreakPreview" }];
+
+    if (refDateIso) {
+      const refCell = ws.getCell(1, colNumOf(RD));
+      refCell.value = toExcelDate(refDateIso);
+      refCell.numFmt = "dd/mm/yyyy";
+    } else {
+      setF(ws, `${RD}1`, "TODAY()");
+    }
 
     // 1) Repérage des fonds à retenir : détenus (montant non nul, réparti par titulaire de
     //    contrat) ET dotés d'un calendrier de RACHAT connu dans la base Althos. Tout le reste
@@ -566,7 +581,24 @@
       });
       ws.getRow(atRow).height = 22;
     }
-    if (!showOwnerHeadings) writeHeaderRow(HEADER_ROW_OUT);
+
+    // Bandeau "Si Date de Retrait Exécuté : XX/XX/XXXX" affiché juste sous chaque en-tête de
+    // tableau UNIQUEMENT quand le conseiller a choisi de simuler une date de retrait future
+    // (sinon rien à signaler, les calculs sont déjà "à la date du jour" par défaut).
+    function writeSimBanner(atRow) {
+      setF(ws, `A${atRow}`, `"Si Date de Retrait Exécuté : "&TEXT(${RD}$1,"dd/mm/yyyy")`);
+      for (let c = 1; c <= headers.length; c++) {
+        ws.getCell(atRow, c).style = JSON.parse(JSON.stringify(headerStyle));
+      }
+      ws.mergeCells(atRow, 1, atRow, headers.length);
+      ws.getCell(atRow, 1).alignment = { horizontal: "center", vertical: "middle" };
+      ws.getRow(atRow).height = 20;
+    }
+
+    if (!showOwnerHeadings) {
+      writeHeaderRow(HEADER_ROW_OUT);
+      if (refDateIso) writeSimBanner(FIRST_DATA_ROW);
+    }
     const PENALTY_COL_WIDTH = 63;
     // Facteur 0.7 : la police réelle (Montserrat) est plus large qu'une police système classique
     // et le retour à la ligne se fait sur des mots entiers (jamais exactement à la largeur max),
@@ -592,7 +624,7 @@
     // 3) Un bandeau par titulaire suivi de sa propre ligne d'en-tête (bandeaux de catégorie beige,
     //    puis une ligne par fonds retenu, avec les formules de calcul) — chaque titulaire séparé
     //    du suivant par 1 ligne vide, pour que 2 tableaux distincts ne paraissent pas collés.
-    let r = showOwnerHeadings ? HEADER_ROW_OUT : FIRST_DATA_ROW;
+    let r = showOwnerHeadings ? HEADER_ROW_OUT : FIRST_DATA_ROW + (refDateIso ? 1 : 0);
     const rowsNeedingDate = [];
     ownerOrder.forEach((ownerKey, ownerIdx) => {
       if (showOwnerHeadings) {
@@ -607,6 +639,7 @@
         r += 1;
         writeHeaderRow(r);
         r += 1;
+        if (refDateIso) { writeSimBanner(r); r += 1; }
       }
 
       let currentCategory; // undefined != "" : force le 1er bandeau même si catégorie ""
@@ -660,7 +693,7 @@
         const AD1 = helperCol("rate_now");
 
         setF(ws, `${L}${r}`, `COUNTIFS(${cal("A")},${b},${cal("C")},"Rachat")`);
-        setF(ws, `${M}${r}`, `IF(${L}${r}=0,"",IFERROR(_xlfn.MINIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},">="&TODAY()),""))`);
+        setF(ws, `${M}${r}`, `IF(${L}${r}=0,"",IFERROR(_xlfn.MINIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},">="&${RD}$1),""))`);
         // VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS avec
         // une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une reconstruction de
         // clé texte + MATCH, plus fragile) — même mécanisme que ${M} ci-dessus, qui fonctionne de
@@ -676,7 +709,7 @@
         setF(ws, `${Np}${r}`, minifsField("G"));
         setF(ws, `${O}${r}`, minifsField("H"));
 
-        setF(ws, `${Q}${r}`, `IF(${c}="","",IF(${c}>TODAY(),"FUTUR",DATEDIF(${c},TODAY(),"m")))`);
+        setF(ws, `${Q}${r}`, `IF(${c}="","",IF(${c}>${RD}$1,"FUTUR",DATEDIF(${c},${RD}$1,"m")))`);
         setF(ws, `${R}${r}`, `COUNTIF(${pen("A")},${b})`);
         setF(ws, `${S}${r}`, `IF(${R}${r}=0,"inconnue",INDEX(${pen("C")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${Tc}${r}`, `IF(${R}${r}=0,"",INDEX(${pen("M")},MATCH(${b},${pen("A")},0)))`);
@@ -719,11 +752,10 @@
           `TRUE(),"")`
         );
         const penCell = ws.getCell(`I${r}`);
-        // Pas de gras ici : une formule Excel ne peut jamais renvoyer un texte à mise en forme
-        // mixte (gras partiel) — seule une partie précise du message doit être en gras (ex.
-        // "aucun rachat possible.") selon la maquette fournie, ce qu'une formule ne peut pas
-        // produire seule. En attente d'une décision sur l'approche (colonne séparée, etc.).
-        penCell.font = dataFont;
+        // Une formule Excel ne peut jamais renvoyer un texte à mise en forme mixte (gras
+        // partiel) : tout le message (pénalité ou fermeture) est mis en gras en bloc, comme la
+        // colonne "Rachat — cash reçu".
+        penCell.font = boldDataFont;
         penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
         // Hauteur de 60pt par défaut (confortable pour l'immense majorité des messages, 2-3
         // lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
@@ -995,9 +1027,8 @@
 
       setF(srcWs, `${colLetter(penCol)}${r}`, `IFERROR(INDEX(${penRange},MATCH(${b},${isinRange},0)),"")`);
       const penCell = srcWs.getCell(r, penCol);
-      // Pas de gras ici (cf. commentaire dans buildExitSheet) : en attente d'une décision sur la
-      // mise en forme, une formule Excel ne pouvant pas produire un gras partiel toute seule.
-      penCell.font = dataFont;
+      // Gras en bloc (cf. commentaire dans buildExitSheet).
+      penCell.font = boldDataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
 
       // Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce
@@ -1043,7 +1074,7 @@
   // Point d'entrée
   // -------------------------------------------------------------------------
 
-  async function buildExitCalendarWorkbook(arrayBuffer, fundsData) {
+  async function buildExitCalendarWorkbook(arrayBuffer, fundsData, refDateIso) {
     const FUNDS = fundsData.funds;
     const CALENDAR = fundsData.calendar;
     const fundsByIsin = new Map();
@@ -1074,7 +1105,7 @@
     const wsPen = writeBddPenalites(workbook, FUNDS);
 
     const { ws: exitWs, selectedCount, fundRowsScanned, rowsNeedingDate, firstDataRow, lastDataRow } =
-      buildExitSheet(workbook, srcWs, headerRow, CALENDAR, wsCal.rowCount, wsPen.rowCount, fundsByIsin);
+      buildExitSheet(workbook, srcWs, headerRow, CALENDAR, wsCal.rowCount, wsPen.rowCount, fundsByIsin, refDateIso);
 
     // Complète aussi Consolidation elle-même avec 2 colonnes (cash reçu / pénalité de sortie),
     // en formule vers "Calendrier de sortie" — même information, une seule source de vérité.

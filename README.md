@@ -118,10 +118,10 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    en beige clair) : le fond de chaque bandeau de catégorie (sur les 2 nouvelles colonnes comme
    sur « Calendrier de sortie ») reprend la teinte exacte de SA catégorie d'origine, pas un modèle
    unique emprunté à la première catégorie trouvée. Les dates de la colonne « Rachat — cash reçu »
-   sont en gras (sur les deux feuilles) ; le texte de la colonne « Pénalité de sortie », lui, n'est
-   pas mis en gras pour l'instant — une formule Excel ne pouvant jamais renvoyer un texte à mise en
-   forme mixte (gras partiel sur une phrase précise), reproduire fidèlement une maquette avec gras
-   partiel demande un choix de conception encore en discussion.
+   et le texte de la colonne « Pénalité de sortie » sont en gras (sur les deux feuilles) — une
+   formule Excel ne pouvant jamais renvoyer un texte à mise en forme mixte (gras partiel sur une
+   phrase précise au milieu du message), c'est tout le contenu de la cellule qui est mis en gras
+   en bloc.
 3. **Si des fonds détenus ont une pénalité de sortie qui dépend d'une date d'investissement**
    (règle à seuil, soft lock-up ou dégressive), la page affiche directement une liste de ces
    fonds avec un champ de saisie par fonds — le conseiller renseigne les dates connues sans
@@ -136,7 +136,22 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
 5. Pour les dates non saisies à l'étape 3, ouvrir le fichier téléchargé et compléter la date
    d'investissement pour le fonds concerné : les 5 dates de rachat et la pénalité de sortie se
    recalculent automatiquement (formules Excel), à partir des échéances les plus proches **de la
-   date du jour** au moment de l'ouverture.
+   date du jour** au moment de l'ouverture (ou de la date de retrait simulée si l'étape 0
+   ci-dessous a été utilisée).
+
+**Simuler une date de retrait future (optionnel)** : avant de déposer le fichier, le conseiller
+peut renseigner un champ « Simuler une date de retrait future » sur la page. Si le client demande
+son retrait dans plusieurs mois plutôt qu'aujourd'hui, cette date remplace alors la date du jour
+dans **tous** les calculs du classeur généré (les 2 pages) — échéances de rachat les plus proches,
+durée de détention, pénalité de sortie active ou non — comme si on se trouvait déjà à cette date.
+Techniquement, une seule cellule de référence (cachée, colonne d'aide de « Calendrier de sortie »)
+porte soit `=TODAY()` (comportement par défaut, toujours à jour à l'ouverture), soit la date
+choisie (figée) ; toutes les formules concernées la référencent plutôt que d'appeler `TODAY()`
+directement. Quand une simulation est active, un bandeau « Si Date de Retrait Exécuté : JJ/MM/AAAA »
+apparaît sous l'en-tête de chaque tableau (par titulaire) pour que ce soit toujours visible sur le
+fichier généré. Laisser le champ vide revient exactement au comportement par défaut (date du jour,
+aucun bandeau). Côté script Python (`build_client_workbook.py`), le 3ᵉ argument optionnel en ligne
+de commande (format `AAAA-MM-JJ`) fait la même chose.
 
 **Comment ça détecte les fonds à retenir ?** Aucune structure de fichier n'est supposée fixe :
 l'outil repère la feuille via son en-tête (« Support » en colonne A), la colonne « TOTAL » (montant

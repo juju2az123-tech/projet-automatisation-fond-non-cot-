@@ -11419,7 +11419,7 @@ window.FUNDS_DATA = {
     "next_pub_sortie", "next_cash_sortie",
     "months_held", "pen_found", "kind", "raw", "duree_vie",
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
-    "rate_now",
+    "rate_now", "ref_date",
   ];
   const HELPER_FIRST_COL = 11; // K (colonnes visibles jusqu'en I : Fonds, ISIN, Date, 5 dates de rachat, Pénalité)
 
@@ -11433,9 +11433,16 @@ window.FUNDS_DATA = {
     return !!(byType && (byType["Rachat"] || byType["Souscription et rachat"]));
   }
 
-  function buildExitSheet(workbook, srcWs, headerRow, calendar, calLastRow, penLastRow, fundsByIsin) {
+  function buildExitSheet(workbook, srcWs, headerRow, calendar, calLastRow, penLastRow, fundsByIsin, refDateIso) {
     const cal = (col) => `BDD_Calendrier!$${col}$2:$${col}$${calLastRow}`;
     const pen = (col) => `BDD_Penalites!$${col}$2:$${col}$${penLastRow}`;
+    // Date de référence utilisée à la place de TODAY() dans tous les calculs (durée de détention,
+    // pénalité active, prochaine échéance de rachat) : soit la date du jour (par défaut, formule
+    // toujours à jour à l'ouverture), soit une date de retrait hypothétique choisie par le
+    // conseiller pour simuler "et si le client sortait à telle date future ?". Toujours dans une
+    // cellule dédiée (jamais TODAY() en dur dans les formules) pour que TOUT le tableau — dates de
+    // rachat comprises — se recalcule par rapport à cette même date de référence.
+    const RD = helperCol("ref_date");
 
     const ws = workbook.addWorksheet("Calendrier de sortie");
     // Quadrillage Excel par défaut désactivé, comme sur Consolidation : sans ça, le fond gris
@@ -11445,6 +11452,14 @@ window.FUNDS_DATA = {
     // <sheetView view="pageBreakPreview">), comme sur Consolidation : c'est ce qui affiche
     // automatiquement le contour bleu de la zone d'impression en vue Normale.
     ws.views = [{ showGridLines: false, style: "pageBreakPreview" }];
+
+    if (refDateIso) {
+      const refCell = ws.getCell(1, colNumOf(RD));
+      refCell.value = toExcelDate(refDateIso);
+      refCell.numFmt = "dd/mm/yyyy";
+    } else {
+      setF(ws, `${RD}1`, "TODAY()");
+    }
 
     // 1) Repérage des fonds à retenir : détenus (montant non nul, réparti par titulaire de
     //    contrat) ET dotés d'un calendrier de RACHAT connu dans la base Althos. Tout le reste
@@ -11560,7 +11575,24 @@ window.FUNDS_DATA = {
       });
       ws.getRow(atRow).height = 22;
     }
-    if (!showOwnerHeadings) writeHeaderRow(HEADER_ROW_OUT);
+
+    // Bandeau "Si Date de Retrait Exécuté : XX/XX/XXXX" affiché juste sous chaque en-tête de
+    // tableau UNIQUEMENT quand le conseiller a choisi de simuler une date de retrait future
+    // (sinon rien à signaler, les calculs sont déjà "à la date du jour" par défaut).
+    function writeSimBanner(atRow) {
+      setF(ws, `A${atRow}`, `"Si Date de Retrait Exécuté : "&TEXT(${RD}$1,"dd/mm/yyyy")`);
+      for (let c = 1; c <= headers.length; c++) {
+        ws.getCell(atRow, c).style = JSON.parse(JSON.stringify(headerStyle));
+      }
+      ws.mergeCells(atRow, 1, atRow, headers.length);
+      ws.getCell(atRow, 1).alignment = { horizontal: "center", vertical: "middle" };
+      ws.getRow(atRow).height = 20;
+    }
+
+    if (!showOwnerHeadings) {
+      writeHeaderRow(HEADER_ROW_OUT);
+      if (refDateIso) writeSimBanner(FIRST_DATA_ROW);
+    }
     const PENALTY_COL_WIDTH = 63;
     // Facteur 0.7 : la police réelle (Montserrat) est plus large qu'une police système classique
     // et le retour à la ligne se fait sur des mots entiers (jamais exactement à la largeur max),
@@ -11586,7 +11618,7 @@ window.FUNDS_DATA = {
     // 3) Un bandeau par titulaire suivi de sa propre ligne d'en-tête (bandeaux de catégorie beige,
     //    puis une ligne par fonds retenu, avec les formules de calcul) — chaque titulaire séparé
     //    du suivant par 1 ligne vide, pour que 2 tableaux distincts ne paraissent pas collés.
-    let r = showOwnerHeadings ? HEADER_ROW_OUT : FIRST_DATA_ROW;
+    let r = showOwnerHeadings ? HEADER_ROW_OUT : FIRST_DATA_ROW + (refDateIso ? 1 : 0);
     const rowsNeedingDate = [];
     ownerOrder.forEach((ownerKey, ownerIdx) => {
       if (showOwnerHeadings) {
@@ -11601,6 +11633,7 @@ window.FUNDS_DATA = {
         r += 1;
         writeHeaderRow(r);
         r += 1;
+        if (refDateIso) { writeSimBanner(r); r += 1; }
       }
 
       let currentCategory; // undefined != "" : force le 1er bandeau même si catégorie ""
@@ -11654,7 +11687,7 @@ window.FUNDS_DATA = {
         const AD1 = helperCol("rate_now");
 
         setF(ws, `${L}${r}`, `COUNTIFS(${cal("A")},${b},${cal("C")},"Rachat")`);
-        setF(ws, `${M}${r}`, `IF(${L}${r}=0,"",IFERROR(_xlfn.MINIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},">="&TODAY()),""))`);
+        setF(ws, `${M}${r}`, `IF(${L}${r}=0,"",IFERROR(_xlfn.MINIFS(${cal("D")},${cal("A")},${b},${cal("C")},"Rachat",${cal("D")},">="&${RD}$1),""))`);
         // VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS avec
         // une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une reconstruction de
         // clé texte + MATCH, plus fragile) — même mécanisme que ${M} ci-dessus, qui fonctionne de
@@ -11670,7 +11703,7 @@ window.FUNDS_DATA = {
         setF(ws, `${Np}${r}`, minifsField("G"));
         setF(ws, `${O}${r}`, minifsField("H"));
 
-        setF(ws, `${Q}${r}`, `IF(${c}="","",IF(${c}>TODAY(),"FUTUR",DATEDIF(${c},TODAY(),"m")))`);
+        setF(ws, `${Q}${r}`, `IF(${c}="","",IF(${c}>${RD}$1,"FUTUR",DATEDIF(${c},${RD}$1,"m")))`);
         setF(ws, `${R}${r}`, `COUNTIF(${pen("A")},${b})`);
         setF(ws, `${S}${r}`, `IF(${R}${r}=0,"inconnue",INDEX(${pen("C")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${Tc}${r}`, `IF(${R}${r}=0,"",INDEX(${pen("M")},MATCH(${b},${pen("A")},0)))`);
@@ -11713,11 +11746,10 @@ window.FUNDS_DATA = {
           `TRUE(),"")`
         );
         const penCell = ws.getCell(`I${r}`);
-        // Pas de gras ici : une formule Excel ne peut jamais renvoyer un texte à mise en forme
-        // mixte (gras partiel) — seule une partie précise du message doit être en gras (ex.
-        // "aucun rachat possible.") selon la maquette fournie, ce qu'une formule ne peut pas
-        // produire seule. En attente d'une décision sur l'approche (colonne séparée, etc.).
-        penCell.font = dataFont;
+        // Une formule Excel ne peut jamais renvoyer un texte à mise en forme mixte (gras
+        // partiel) : tout le message (pénalité ou fermeture) est mis en gras en bloc, comme la
+        // colonne "Rachat — cash reçu".
+        penCell.font = boldDataFont;
         penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
         // Hauteur de 60pt par défaut (confortable pour l'immense majorité des messages, 2-3
         // lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
@@ -11989,9 +12021,8 @@ window.FUNDS_DATA = {
 
       setF(srcWs, `${colLetter(penCol)}${r}`, `IFERROR(INDEX(${penRange},MATCH(${b},${isinRange},0)),"")`);
       const penCell = srcWs.getCell(r, penCol);
-      // Pas de gras ici (cf. commentaire dans buildExitSheet) : en attente d'une décision sur la
-      // mise en forme, une formule Excel ne pouvant pas produire un gras partiel toute seule.
-      penCell.font = dataFont;
+      // Gras en bloc (cf. commentaire dans buildExitSheet).
+      penCell.font = boldDataFont;
       penCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
 
       // Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce
@@ -12037,7 +12068,7 @@ window.FUNDS_DATA = {
   // Point d'entrée
   // -------------------------------------------------------------------------
 
-  async function buildExitCalendarWorkbook(arrayBuffer, fundsData) {
+  async function buildExitCalendarWorkbook(arrayBuffer, fundsData, refDateIso) {
     const FUNDS = fundsData.funds;
     const CALENDAR = fundsData.calendar;
     const fundsByIsin = new Map();
@@ -12068,7 +12099,7 @@ window.FUNDS_DATA = {
     const wsPen = writeBddPenalites(workbook, FUNDS);
 
     const { ws: exitWs, selectedCount, fundRowsScanned, rowsNeedingDate, firstDataRow, lastDataRow } =
-      buildExitSheet(workbook, srcWs, headerRow, CALENDAR, wsCal.rowCount, wsPen.rowCount, fundsByIsin);
+      buildExitSheet(workbook, srcWs, headerRow, CALENDAR, wsCal.rowCount, wsPen.rowCount, fundsByIsin, refDateIso);
 
     // Complète aussi Consolidation elle-même avec 2 colonnes (cash reçu / pénalité de sortie),
     // en formule vers "Calendrier de sortie" — même information, une seule source de vérité.
@@ -12254,6 +12285,18 @@ window.FUNDS_DATA = {
     border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:13px;
     font-family:inherit;width:100%;
   }
+
+  .simdate-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .simdate-row label{font-size:13px;font-weight:600;color:var(--navy);}
+  .simdate-row input[type="date"]{
+    border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;
+    font-family:inherit;
+  }
+  .simdate-row .simdate-clear{
+    background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;
+    text-decoration:underline;padding:0;
+  }
+  .simdate-hint{font-size:12px;color:var(--text-muted);margin:6px 0 0;}
 </style>
 </head>
 <body>
@@ -12274,6 +12317,18 @@ window.FUNDS_DATA = {
     ⚠️ <b>Vérification recommandée.</b> Les dates d'ordres et pénalités de sortie sont calculées
     par formules à partir des calendriers officiels Althos. Vérifiez toujours une donnée
     sensible contre le PDF / DICI officiel du fonds avant de répondre à un client.
+  </div>
+
+  <div class="panel">
+    <div class="simdate-row">
+      <label for="refDateInput">Simuler une date de retrait future (optionnel)</label>
+      <input type="date" id="refDateInput">
+      <button type="button" class="simdate-clear" id="refDateClear">Effacer</button>
+    </div>
+    <p class="simdate-hint">Laissez vide pour calculer les dates de rachat et la pénalité de
+      sortie à la date du jour (comportement par défaut). Si le client demande son retrait dans
+      plusieurs mois, indiquez cette date future : tout le tableau (échéances de rachat, durée de
+      détention, pénalité) est alors calculé comme si on s'y trouvait déjà.</p>
   </div>
 
   <div class="panel">
@@ -12322,6 +12377,8 @@ window.FUNDS_DATA = {
 
   const dropZone = document.getElementById("dropZone");
   const fileInput = document.getElementById("fileInput");
+  const refDateInput = document.getElementById("refDateInput");
+  const refDateClear = document.getElementById("refDateClear");
   const statusEl = document.getElementById("status");
   const downloadArea = document.getElementById("downloadArea");
   const downloadBtn = document.getElementById("downloadBtn");
@@ -12345,6 +12402,8 @@ window.FUNDS_DATA = {
     statusEl.className = "status";
     statusEl.innerHTML = "";
   }
+
+  refDateClear.addEventListener("click", function(){ refDateInput.value = ""; });
 
   dropZone.addEventListener("click", function(){ fileInput.click(); });
   ["dragenter","dragover"].forEach(function(evt){
@@ -12390,7 +12449,8 @@ window.FUNDS_DATA = {
 
     try{
       const buf = await file.arrayBuffer();
-      const result = await buildExitCalendarWorkbook(buf, window.FUNDS_DATA);
+      const refDateIso = refDateInput.value || null; // "" si vide -> null = date du jour (défaut)
+      const result = await buildExitCalendarWorkbook(buf, window.FUNDS_DATA, refDateIso);
       pendingWorkbook = result.workbook;
       pendingExitWs = result.exitWs;
       pendingFilename = outputFilename(file.name);
@@ -12399,10 +12459,14 @@ window.FUNDS_DATA = {
       const summary = s.selectedCount
         ? '<li>' + s.selectedCount + ' ligne(s) (fonds détenu(s) avec un calendrier de rachat connu, une ligne par titulaire le cas échéant) listée(s) dans la nouvelle feuille, groupées par catégorie, avec les dates de rachat (ordre avant / VL / exécuté / publié / cash reçu) et la pénalité de sortie éventuelle.</li>'
         : '<li>Aucun fonds détenu par ce client n\'a de calendrier de rachat connu dans la base — la feuille le précise.</li>';
+      const simLine = refDateIso
+        ? '<li><b>Simulation active</b> : tout le tableau est calculé comme si on se trouvait au ' + escapeHtml(formatFrDate(refDateIso)) + '.</li>'
+        : '';
       setStatus("ok",
         '<div class="line1">✓ Feuille « Calendrier de sortie » générée</div>' +
         '<ul>' + summary +
         '<li>' + s.fundRowsScanned + ' ligne(s) de fonds analysée(s) dans la consolidation d\'origine.</li>' +
+        simLine +
         '</ul>'
       );
 
@@ -12489,6 +12553,12 @@ window.FUNDS_DATA = {
     return (s||"").replace(/[&<>"']/g, function(c){
       return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c];
     });
+  }
+
+  /** "2026-12-09" -> "09/12/2026". */
+  function formatFrDate(iso){
+    const parts = iso.split("-");
+    return parts[2] + "/" + parts[1] + "/" + parts[0];
   }
 })();
 </script>

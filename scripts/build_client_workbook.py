@@ -27,10 +27,14 @@ date du jour), et s'appuient sur deux feuilles de données ajoutées et masquée
   - BDD_Penalites    (règles de pénalité de sortie structurées, même parseur que build_data.py)
 
 Usage :
-    python3 scripts/build_client_workbook.py [chemin_consolidation.xlsx] [chemin_sortie.xlsx]
+    python3 scripts/build_client_workbook.py [chemin_consolidation.xlsx] [chemin_sortie.xlsx] [date_retrait_simulee]
 
 Par défaut lit source/ConsolidationTemplateAlthosAI_V5.xlsx et écrit
 output/ConsolidationTemplateAlthosAI_V5_avec_calendrier.xlsx
+
+Le 3e argument optionnel (format AAAA-MM-JJ, ex. 2026-12-09) simule une date de retrait future :
+tout le tableau (échéances de rachat, durée de détention, pénalité de sortie) est alors calculé
+comme si on s'y trouvait déjà, plutôt qu'à la date du jour.
 """
 import sys
 import re
@@ -492,7 +496,7 @@ HELPER_NAMES = [
     "next_pub_sortie", "next_cash_sortie",
     "months_held", "pen_found", "kind", "raw", "duree_vie",
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
-    "rate_now",
+    "rate_now", "ref_date",
 ]
 HELPER_FIRST_COL = 11  # K (colonnes visibles jusqu'en I : Fonds, ISIN, Date, 5 dates de rachat, Pénalité)
 
@@ -508,16 +512,32 @@ def has_rachat_calendar(calendar, isin):
     return bool(by_type and (by_type.get("Rachat") or by_type.get("Souscription et rachat")))
 
 
-def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_isin):
+def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_isin, ref_date_iso=None):
     def cal(col):
         return f"BDD_Calendrier!${col}$2:${col}${cal_last_row}"
 
     def pen(col):
         return f"BDD_Penalites!${col}$2:${col}${pen_last_row}"
 
+    # Date de référence utilisée à la place de TODAY() dans tous les calculs (durée de détention,
+    # pénalité active, prochaine échéance de rachat) : soit la date du jour (par défaut, formule
+    # toujours à jour à l'ouverture), soit une date de retrait hypothétique choisie par le
+    # conseiller pour simuler "et si le client sortait à telle date future ?". Toujours dans une
+    # cellule dédiée (jamais TODAY() en dur dans les formules) pour que TOUT le tableau — dates de
+    # rachat comprises — se recalcule par rapport à cette même date de référence.
+    RD = helper_col("ref_date")
+
     ws = wb.create_sheet("Calendrier de sortie")
     wb._sheets.remove(ws)
     wb._sheets.insert(wb._sheets.index(src_ws) + 1, ws)  # right after "Consolidation"
+
+    if ref_date_iso:
+        y, m, d = (int(p) for p in ref_date_iso.split("-"))
+        ref_cell = ws[f"{RD}1"]
+        ref_cell.value = datetime.datetime(y, m, d)
+        ref_cell.number_format = "dd/mm/yyyy"
+    else:
+        ws[f"{RD}1"] = "=TODAY()"
 
     header_row = find_header_row(src_ws)
     if header_row is None:
@@ -628,8 +648,21 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             cell.border = grid_border
         ws.row_dimensions[at_row].height = 22
 
+    # Bandeau "Si Date de Retrait Exécuté : XX/XX/XXXX" affiché juste sous chaque en-tête de
+    # tableau UNIQUEMENT quand le conseiller a choisi de simuler une date de retrait future
+    # (sinon rien à signaler, les calculs sont déjà "à la date du jour" par défaut).
+    def write_sim_banner(at_row):
+        cell = ws.cell(row=at_row, column=1, value=f'="Si Date de Retrait Exécuté : "&TEXT({RD}$1,"dd/mm/yyyy")')
+        for c in range(1, len(headers) + 1):
+            ws.cell(row=at_row, column=c)._style = copy(header_style)
+        ws.merge_cells(start_row=at_row, start_column=1, end_row=at_row, end_column=len(headers))
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[at_row].height = 20
+
     if not show_owner_headings:
         write_header_row(HEADER_ROW_OUT)
+        if ref_date_iso:
+            write_sim_banner(FIRST_DATA_ROW)
 
     PENALTY_COL_WIDTH = 63
     # Facteur 0.7 : la police réelle (Montserrat) est plus large qu'une police système classique
@@ -654,7 +687,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
         apply_print_setup(ws, FIRST_DATA_ROW, len(headers))
         return ws, 0, len(fund_rows), None, None
 
-    r = HEADER_ROW_OUT if show_owner_headings else FIRST_DATA_ROW
+    r = HEADER_ROW_OUT if show_owner_headings else FIRST_DATA_ROW + (1 if ref_date_iso else 0)
     for owner_idx, owner_key in enumerate(owner_order):
         if show_owner_headings:
             heading = harmonize_owner_label(owner_key, owner_civilities)
@@ -667,6 +700,9 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             r += 1
             write_header_row(r)
             r += 1
+            if ref_date_iso:
+                write_sim_banner(r)
+                r += 1
 
         current_category = object()  # sentinelle : force le 1er bandeau même si catégorie ""
         for item in by_owner[owner_key]:
@@ -720,7 +756,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             ws[f"{L}{r}"] = f'=COUNTIFS({cal("A")},{b},{cal("C")},"Rachat")'
             ws[f"{M}{r}"] = (f'=IF({L}{r}=0,"",IFERROR(_xlfn.MINIFS({cal("D")},'
                               f'{cal("A")},{b},{cal("C")},"Rachat",'
-                              f'{cal("D")},">="&TODAY()),""))')
+                              f'{cal("D")},">="&{RD}$1),""))')
             # VL / exécuté / publié / cash reçu de CETTE échéance précise : on réutilise MINIFS
             # avec une égalité exacte sur la date de cut-off déjà trouvée (au lieu d'une
             # reconstruction de clé texte + MATCH, plus fragile) — même mécanisme que {M}
@@ -738,7 +774,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             ws[f"{Np}{r}"] = minifs_field("G")
             ws[f"{O}{r}"] = minifs_field("H")
 
-            ws[f"{Q}{r}"] = f'=IF({c}="","",IF({c}>TODAY(),"FUTUR",DATEDIF({c},TODAY(),"m")))'
+            ws[f"{Q}{r}"] = f'=IF({c}="","",IF({c}>{RD}$1,"FUTUR",DATEDIF({c},{RD}$1,"m")))'
             ws[f"{R}{r}"] = f'=COUNTIF({pen("A")},{b})'
             ws[f"{S}{r}"] = f'=IF({R}{r}=0,"inconnue",INDEX({pen("C")},MATCH({b},{pen("A")},0)))'
             ws[f"{Tc}{r}"] = f'=IF({R}{r}=0,"",INDEX({pen("M")},MATCH({b},{pen("A")},0)))'
@@ -781,11 +817,10 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
                 f'TRUE(),"")'
             )
             pen_cell = ws[f"I{r}"]
-            # Pas de gras ici : une formule Excel ne peut jamais renvoyer un texte à mise en forme
-            # mixte (gras partiel) — seule une partie précise du message doit être en gras (ex.
-            # "aucun rachat possible.") selon la maquette fournie, ce qu'une formule ne peut pas
-            # produire seule. En attente d'une décision sur l'approche (colonne séparée, etc.).
-            pen_cell.font = data_font
+            # Une formule Excel ne peut jamais renvoyer un texte à mise en forme mixte (gras
+            # partiel) : tout le message (pénalité ou fermeture) est mis en gras en bloc, comme
+            # la colonne "Rachat — cash reçu".
+            pen_cell.font = bold_data_font
             pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
             # Hauteur de 60pt par défaut (confortable pour l'immense majorité des messages, 2-3
             # lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
@@ -934,9 +969,8 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         cash_cell.alignment = Alignment(horizontal="center", vertical="center")
 
         pen_cell = src_ws.cell(row=r, column=pen_col, value=f"=IFERROR(INDEX({pen_range},MATCH({b},{isin_range},0)),\"\")")
-        # Pas de gras ici (cf. commentaire dans build_exit_sheet) : en attente d'une décision sur
-        # la mise en forme, une formule Excel ne pouvant pas produire un gras partiel toute seule.
-        pen_cell.font = data_font
+        # Gras en bloc (cf. commentaire dans build_exit_sheet).
+        pen_cell.font = bold_data_font
         pen_cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
         # Hauteur de 60pt par défaut, augmentée seulement si le texte réel de la base pour ce
@@ -954,6 +988,10 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
 def main():
     src_path = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "source" / "ConsolidationTemplateAlthosAI_V5.xlsx"
     out_path = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "output" / "ConsolidationTemplateAlthosAI_V5_avec_calendrier.xlsx"
+    # Date de retrait simulée (optionnelle), au format AAAA-MM-JJ : si fournie, TOUT le tableau
+    # (échéances de rachat, durée de détention, pénalité) est calculé comme si on s'y trouvait
+    # déjà, plutôt qu'à la date du jour.
+    ref_date_iso = sys.argv[3] if len(sys.argv) > 3 else None
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     wb_cal = openpyxl.load_workbook(CAL_FILE, data_only=True)
@@ -976,7 +1014,7 @@ def main():
     ws_cal = write_bdd_calendrier(wb, calendar)
     ws_pen = write_bdd_penalites(wb, funds)
     exit_ws, selected_count, fund_rows_count, first_data_row, last_data_row = build_exit_sheet(
-        wb, src_ws, calendar, ws_cal.max_row, ws_pen.max_row, funds_by_isin)
+        wb, src_ws, calendar, ws_cal.max_row, ws_pen.max_row, funds_by_isin, ref_date_iso)
 
     # Complète aussi Consolidation elle-même avec 2 colonnes (cash reçu / pénalité de sortie),
     # en formule vers "Calendrier de sortie" — même information, une seule source de vérité.

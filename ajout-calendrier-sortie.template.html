@@ -149,6 +149,18 @@
     border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:13px;
     font-family:inherit;width:100%;
   }
+
+  .simdate-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .simdate-row label{font-size:13px;font-weight:600;color:var(--navy);}
+  .simdate-row input[type="date"]{
+    border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;
+    font-family:inherit;
+  }
+  .simdate-row .simdate-clear{
+    background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;
+    text-decoration:underline;padding:0;
+  }
+  .simdate-hint{font-size:12px;color:var(--text-muted);margin:6px 0 0;}
 </style>
 </head>
 <body>
@@ -169,6 +181,18 @@
     ⚠️ <b>Vérification recommandée.</b> Les dates d'ordres et pénalités de sortie sont calculées
     par formules à partir des calendriers officiels Althos. Vérifiez toujours une donnée
     sensible contre le PDF / DICI officiel du fonds avant de répondre à un client.
+  </div>
+
+  <div class="panel">
+    <div class="simdate-row">
+      <label for="refDateInput">Simuler une date de retrait future (optionnel)</label>
+      <input type="date" id="refDateInput">
+      <button type="button" class="simdate-clear" id="refDateClear">Effacer</button>
+    </div>
+    <p class="simdate-hint">Laissez vide pour calculer les dates de rachat et la pénalité de
+      sortie à la date du jour (comportement par défaut). Si le client demande son retrait dans
+      plusieurs mois, indiquez cette date future : tout le tableau (échéances de rachat, durée de
+      détention, pénalité) est alors calculé comme si on s'y trouvait déjà.</p>
   </div>
 
   <div class="panel">
@@ -217,6 +241,8 @@
 
   const dropZone = document.getElementById("dropZone");
   const fileInput = document.getElementById("fileInput");
+  const refDateInput = document.getElementById("refDateInput");
+  const refDateClear = document.getElementById("refDateClear");
   const statusEl = document.getElementById("status");
   const downloadArea = document.getElementById("downloadArea");
   const downloadBtn = document.getElementById("downloadBtn");
@@ -240,6 +266,8 @@
     statusEl.className = "status";
     statusEl.innerHTML = "";
   }
+
+  refDateClear.addEventListener("click", function(){ refDateInput.value = ""; });
 
   dropZone.addEventListener("click", function(){ fileInput.click(); });
   ["dragenter","dragover"].forEach(function(evt){
@@ -285,7 +313,8 @@
 
     try{
       const buf = await file.arrayBuffer();
-      const result = await buildExitCalendarWorkbook(buf, window.FUNDS_DATA);
+      const refDateIso = refDateInput.value || null; // "" si vide -> null = date du jour (défaut)
+      const result = await buildExitCalendarWorkbook(buf, window.FUNDS_DATA, refDateIso);
       pendingWorkbook = result.workbook;
       pendingExitWs = result.exitWs;
       pendingFilename = outputFilename(file.name);
@@ -294,10 +323,14 @@
       const summary = s.selectedCount
         ? '<li>' + s.selectedCount + ' ligne(s) (fonds détenu(s) avec un calendrier de rachat connu, une ligne par titulaire le cas échéant) listée(s) dans la nouvelle feuille, groupées par catégorie, avec les dates de rachat (ordre avant / VL / exécuté / publié / cash reçu) et la pénalité de sortie éventuelle.</li>'
         : '<li>Aucun fonds détenu par ce client n\'a de calendrier de rachat connu dans la base — la feuille le précise.</li>';
+      const simLine = refDateIso
+        ? '<li><b>Simulation active</b> : tout le tableau est calculé comme si on se trouvait au ' + escapeHtml(formatFrDate(refDateIso)) + '.</li>'
+        : '';
       setStatus("ok",
         '<div class="line1">✓ Feuille « Calendrier de sortie » générée</div>' +
         '<ul>' + summary +
         '<li>' + s.fundRowsScanned + ' ligne(s) de fonds analysée(s) dans la consolidation d\'origine.</li>' +
+        simLine +
         '</ul>'
       );
 
@@ -384,6 +417,12 @@
     return (s||"").replace(/[&<>"']/g, function(c){
       return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c];
     });
+  }
+
+  /** "2026-12-09" -> "09/12/2026". */
+  function formatFrDate(iso){
+    const parts = iso.split("-");
+    return parts[2] + "/" + parts[1] + "/" + parts[0];
   }
 })();
 </script>
