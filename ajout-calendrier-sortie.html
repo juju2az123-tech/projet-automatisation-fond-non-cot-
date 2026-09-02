@@ -11126,15 +11126,18 @@ window.FUNDS_DATA = {
   };
 
   /** Nombre de lignes à prévoir pour le texte de pénalité d'un fonds donné, une fois la mise en
-   *  forme finale appliquée (2 phrases séparées par un retour à la ligne explicite pour "ferme"
-   *  et les pénalités actives datées) — calculé à partir de la longueur RÉELLE du texte de la
-   *  base (connue à la génération), pas devinée : un texte source inhabituellement long (ça
-   *  arrive) donne une ligne plus haute plutôt qu'un texte coupé. */
-  function estimatePenaltyLines(kind, rawLen, dureeLen, charsPerLine) {
+   *  forme finale appliquée (jusqu'à 3 phrases séparées par un retour à la ligne explicite pour
+   *  "ferme" — message fixe, puis durée de vie du fonds, puis durée de blocage/conservation,
+   *  chacune optionnelle — et 2 phrases pour les pénalités actives datées) — calculé à partir de
+   *  la longueur RÉELLE du texte de la base (connue à la génération), pas devinée : un texte
+   *  source inhabituellement long (ça arrive) donne une ligne plus haute plutôt qu'un texte
+   *  coupé. */
+  function estimatePenaltyLines(kind, rawLen, dureeLen, conservationLen, charsPerLine) {
     const linesFor = (len) => Math.max(1, Math.ceil(len / charsPerLine));
     if (kind === "ferme") {
       let lines = linesFor(PENALTY_PREFIXES.ferme.length);
       if (dureeLen) lines += linesFor(dureeLen);
+      if (conservationLen) lines += linesFor(conservationLen);
       return lines;
     }
     if (kind === "manuel") {
@@ -11868,7 +11871,7 @@ window.FUNDS_DATA = {
         // lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
         // inhabituellement long (ça arrive), pour ne jamais le couper.
         const penInfo = item.penalite || { kind: "inconnue", raw: null };
-        const lines = estimatePenaltyLines(penInfo.kind, (penInfo.raw || "").length, (penInfo.dureeVie || "").length, CHARS_PER_LINE);
+        const lines = estimatePenaltyLines(penInfo.kind, (penInfo.raw || "").length, (penInfo.dureeVie || "").length, (penInfo.conservation || "").length, CHARS_PER_LINE);
         ws.getRow(r).height = Math.max(DEFAULT_PENALTY_ROW_HEIGHT, heightForLines(lines, baseFontSize));
         r += 1;
       });
@@ -12041,7 +12044,12 @@ window.FUNDS_DATA = {
     const boldDataFont = { name: baseFontName, size: baseFontSize, bold: true };
     const twoRowHeader = hasTwoRowHeader(srcWs, headerRow, 1);
     const gridBorder = buildGridBorder(srcWs, headerRow);
-    const PENALTY_COL_WIDTH = 63; // même largeur que sur "Calendrier de sortie", pour un rendu cohérent
+    // Largeur volontairement plus étroite que sur "Calendrier de sortie" (63) : sur Consolidation,
+    // une colonne aussi large que les autres pages donnait l'impression d'un gros bloc de texte
+    // disproportionné par rapport aux colonnes voisines, plus compactes. Les lignes concernées
+    // sont de toute façon déjà réhaussées automatiquement (cf. plus bas) pour ne jamais couper le
+    // texte, quelle que soit la largeur choisie ici.
+    const PENALTY_COL_WIDTH = 30;
     const CHARS_PER_LINE = Math.round(PENALTY_COL_WIDTH * 0.55); // cf. commentaire dans buildExitSheet
 
     [[cashCol, "Rachat — cash reçu", 16], [penCol, "Pénalité de sortie", PENALTY_COL_WIDTH]].forEach(([col, label, width]) => {
@@ -12166,7 +12174,7 @@ window.FUNDS_DATA = {
       // visuelle du tableau).
       const fund = fundsByIsin.get(isin);
       const penInfo = (fund && fund.penalite) || { kind: "inconnue", raw: null };
-      const lines = estimatePenaltyLines(penInfo.kind, (penInfo.raw || "").length, (penInfo.dureeVie || "").length, CHARS_PER_LINE);
+      const lines = estimatePenaltyLines(penInfo.kind, (penInfo.raw || "").length, (penInfo.dureeVie || "").length, (penInfo.conservation || "").length, CHARS_PER_LINE);
       const neededHeight = heightForLines(lines, baseFontSize);
       if (neededHeight > (srcWs.getRow(r).height || 0)) srcWs.getRow(r).height = neededHeight;
     });
@@ -12175,15 +12183,18 @@ window.FUNDS_DATA = {
     // basse de la dernière ligne fonds, mais comme bordure haute de la ligne suivante (souvent
     // une note en italique sous le tableau) — sur les colonnes d'origine uniquement. Sans la
     // reprendre aussi sur les 2 nouvelles colonnes, la ligne de fermeture du tableau s'arrête
-    // net juste avant elles.
+    // net juste avant elles. On ne recopie que la PRÉSENCE d'une bordure de clôture à cet
+    // endroit (pour savoir s'il y en a une) — pas son épaisseur d'origine, qui est le cadre
+    // épais ("medium") du tableau : on garde plutôt le même trait fin que le reste du
+    // quadrillage de ces 2 colonnes (gridBorder), pour un rendu homogène sur toute leur hauteur,
+    // y compris à la toute dernière ligne.
     if (categoryRows.length || fundRows.length) {
       const lastBodyRow = Math.max(0, ...categoryRows, ...fundRows);
       const closingRow = lastBodyRow + 1;
-      const closingSide = srcWs.getCell(closingRow, 1).border && srcWs.getCell(closingRow, 1).border.top;
-      if (closingSide) {
-        const side = JSON.parse(JSON.stringify(closingSide));
+      const hasClosingBorder = !!(srcWs.getCell(closingRow, 1).border && srcWs.getCell(closingRow, 1).border.top);
+      if (hasClosingBorder) {
         [cashCol, penCol].forEach((col) => {
-          srcWs.getCell(closingRow, col).style = { fill: { type: "pattern", pattern: "none" }, border: { top: side } };
+          srcWs.getCell(closingRow, col).style = { fill: { type: "pattern", pattern: "none" }, border: { top: gridBorder.top } };
         });
       }
     }

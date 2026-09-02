@@ -38,6 +38,7 @@ comme si on s'y trouvait déjà, plutôt qu'à la date du jour.
 """
 import sys
 import re
+import math
 import datetime
 from copy import copy
 from pathlib import Path
@@ -55,6 +56,14 @@ from build_data import (  # noqa: E402
 )
 
 CAL_FILE = ROOT / "source" / "Calendriers_de_fonds_Althos.xlsx"
+
+
+def round_half_up(x):
+    """Arrondi "moitié vers le haut" (0.5 -> 1), comme Math.round() en JS — Python round() arrondit
+    au pair le plus proche (banker's rounding : round(16.5) == 16), ce qui ferait diverger
+    CHARS_PER_LINE (donc la hauteur de ligne calculée) entre les 2 implémentations dès qu'une
+    largeur de colonne tombe exactement sur un ".5" (ex. 30 * 0.55 = 16.5)."""
+    return math.floor(x + 0.5)
 
 
 
@@ -95,12 +104,13 @@ PENALTY_PREFIXES = {
 }
 
 
-def estimate_penalty_lines(kind, raw_len, duree_len, chars_per_line):
+def estimate_penalty_lines(kind, raw_len, duree_len, conservation_len, chars_per_line):
     """Nombre de lignes à prévoir pour le texte de pénalité d'un fonds donné, une fois la mise en
-    forme finale appliquée (2 phrases séparées par un retour à la ligne explicite pour "ferme" et
-    les pénalités actives datées) — calculé à partir de la longueur RÉELLE du texte de la base
-    (connue à la génération), pas devinée : un texte source inhabituellement long (ça arrive)
-    donne une ligne plus haute plutôt qu'un texte coupé."""
+    forme finale appliquée (jusqu'à 3 phrases séparées par un retour à la ligne explicite pour
+    "ferme" — message fixe, puis durée de vie du fonds, puis durée de blocage/conservation,
+    chacune optionnelle — et 2 phrases pour les pénalités actives datées) — calculé à partir de la
+    longueur RÉELLE du texte de la base (connue à la génération), pas devinée : un texte source
+    inhabituellement long (ça arrive) donne une ligne plus haute plutôt qu'un texte coupé."""
     def lines_for(length):
         return max(1, -(-length // chars_per_line))  # ceil
 
@@ -108,6 +118,8 @@ def estimate_penalty_lines(kind, raw_len, duree_len, chars_per_line):
         lines = lines_for(len(PENALTY_PREFIXES["ferme"]))
         if duree_len:
             lines += lines_for(duree_len)
+        if conservation_len:
+            lines += lines_for(conservation_len)
         return lines
     if kind == "manuel":
         return lines_for(len(PENALTY_PREFIXES["manuel"]) + raw_len)
@@ -121,8 +133,12 @@ def height_for_lines(lines, font_size):
     `font_size` — approximation généreuse du ratio hauteur de ligne / taille de police (~1.5,
     contre ~1.2 pour une police système classique) : la police réelle utilisée dans ces
     classeurs (Montserrat) est plus large et rend visuellement plus haute qu'une police par
-    défaut, donc la marge est volontairement large pour ne jamais couper le texte de justesse."""
-    return round(lines * (font_size * 1.6 + 4))
+    défaut, donc la marge est volontairement large pour ne jamais couper le texte de justesse.
+    round_half_up (pas round()) : la taille de police vient du fichier client (pas toujours un
+    entier rond) et peut donc, selon sa valeur, tomber exactement sur un ".5" — cf. le
+    commentaire de round_half_up plus haut sur la divergence JS/Python que ça provoquerait
+    sinon."""
+    return round_half_up(lines * (font_size * 1.6 + 4))
 
 
 # Volontairement plus haut qu'un minimum "juste" : sans moteur de rendu disponible pour vérifier
@@ -722,7 +738,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     # et le retour à la ligne se fait sur des mots entiers (jamais exactement à la largeur max),
     # donc le nombre de caractères qui tiennent réellement sur une ligne est nettement inférieur
     # à la largeur de colonne brute — mieux vaut sur-estimer le nombre de lignes que couper le texte.
-    CHARS_PER_LINE = round(PENALTY_COL_WIDTH * 0.55)
+    CHARS_PER_LINE = round_half_up(PENALTY_COL_WIDTH * 0.55)
     widths = [37, 16, 22, 22, 15, 19, 18, 20, PENALTY_COL_WIDTH]
     for i, w in enumerate(widths):
         ws.column_dimensions[get_column_letter(i + 1)].width = w
@@ -912,7 +928,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             # lignes) ; augmentée seulement si le texte réel de la base pour ce fonds précis est
             # inhabituellement long (ça arrive), pour ne jamais le couper.
             pen_info = item.get("penalite") or {"kind": "inconnue", "raw": None}
-            lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), CHARS_PER_LINE)
+            lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), len(pen_info.get("conservation") or ""), CHARS_PER_LINE)
             ws.row_dimensions[r].height = max(DEFAULT_PENALTY_ROW_HEIGHT, height_for_lines(lines, data_font.size))
             r += 1
 
@@ -978,8 +994,13 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     bold_data_font = Font(name=header_font.name, size=header_font.size, bold=True)
     two_row_header = has_two_row_header(src_ws, header_row, 1)
     grid_border = build_grid_border(src_ws, header_row)
-    PENALTY_COL_WIDTH = 63  # même largeur que sur "Calendrier de sortie", pour un rendu cohérent
-    CHARS_PER_LINE = round(PENALTY_COL_WIDTH * 0.55)  # cf. commentaire dans build_exit_sheet
+    # Largeur volontairement plus étroite que sur "Calendrier de sortie" (63) : sur Consolidation,
+    # une colonne aussi large que les autres pages donnait l'impression d'un gros bloc de texte
+    # disproportionné par rapport aux colonnes voisines, plus compactes. Les lignes concernées
+    # sont de toute façon déjà réhaussées automatiquement (cf. plus bas) pour ne jamais couper le
+    # texte, quelle que soit la largeur choisie ici.
+    PENALTY_COL_WIDTH = 30
+    CHARS_PER_LINE = round_half_up(PENALTY_COL_WIDTH * 0.55)  # cf. commentaire dans build_exit_sheet
 
     for col, label, width in ((cash_col, "Rachat — cash reçu", 16), (pen_col, "Pénalité de sortie", PENALTY_COL_WIDTH)):
         cell = src_ws.cell(row=header_row, column=col, value=label)
@@ -1086,7 +1107,7 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         # régularité visuelle du tableau).
         fund = funds_by_isin.get(isin)
         pen_info = (fund or {}).get("penalite") or {"kind": "inconnue", "raw": None}
-        lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), CHARS_PER_LINE)
+        lines = estimate_penalty_lines(pen_info.get("kind"), len(pen_info.get("raw") or ""), len(pen_info.get("dureeVie") or ""), len(pen_info.get("conservation") or ""), CHARS_PER_LINE)
         needed_height = height_for_lines(lines, data_font.size)
         if needed_height > (src_ws.row_dimensions[r].height or 0):
             src_ws.row_dimensions[r].height = needed_height
@@ -1095,17 +1116,19 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     # de la dernière ligne fonds, mais comme bordure haute de la ligne suivante (souvent une note
     # en italique sous le tableau) — sur les colonnes d'origine uniquement. Sans la reprendre
     # aussi sur les 2 nouvelles colonnes, la ligne de fermeture du tableau s'arrête net juste
-    # avant elles.
+    # avant elles. On ne recopie que la PRÉSENCE d'une bordure de clôture à cet endroit (pour
+    # savoir s'il y en a une) — pas son épaisseur d'origine, qui est le cadre épais ("medium") du
+    # tableau : on garde plutôt le même trait fin que le reste du quadrillage de ces 2 colonnes
+    # (grid_border), pour un rendu homogène sur toute leur hauteur, y compris à la dernière ligne.
     if category_rows or fund_rows:
         last_body_row = max(category_rows + fund_rows)
         closing_row = last_body_row + 1
         closing_side = src_ws.cell(row=closing_row, column=1).border.top
         if closing_side and closing_side.style:
-            side = copy(closing_side)
             for col in (cash_col, pen_col):
                 cell = src_ws.cell(row=closing_row, column=col)
                 cell.fill = copy(no_fill)
-                cell.border = Border(top=side)
+                cell.border = Border(top=copy(grid_border.top))
 
     extend_merge_right(src_ws, 1, pen_col)
     extend_print_area(src_ws, pen_col)
