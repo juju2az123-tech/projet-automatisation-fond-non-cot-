@@ -220,17 +220,17 @@
   function writeBddPenalites(workbook, funds) {
     const ws = workbook.addWorksheet("BDD_Penalites");
     const headers = ["ISIN", "Nom", "Kind", "Max1", "Rate1", "Max2", "Rate2",
-      "Max3", "Rate3", "Max4", "Rate4", "Rate5", "RawText", "DureeVie"];
+      "Max3", "Rate3", "Max4", "Rate4", "Rate5", "RawText", "DureeVie", "Conservation"];
     ws.addRow(headers);
 
     funds.forEach((f) => {
       if (!f.isin) return;
       const pen = f.penalite || { kind: "inconnue", raw: null, tiers: [] };
       const tiers9 = buildTierColumns(pen);
-      ws.addRow([f.isin, f.nom, pen.kind, ...tiers9, pen.raw || "", pen.dureeVie || ""]);
+      ws.addRow([f.isin, f.nom, pen.kind, ...tiers9, pen.raw || "", pen.dureeVie || "", pen.conservation || ""]);
     });
 
-    const widths = [14, 34, 11, 7, 7, 7, 7, 7, 7, 7, 7, 7, 60, 60];
+    const widths = [14, 34, 11, 7, 7, 7, 7, 7, 7, 7, 7, 7, 60, 60, 60];
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
     ws.getRow(1).font = { bold: true };
     ws.state = "hidden";
@@ -439,7 +439,7 @@
   const HELPER_NAMES = [
     "has_sortie", "next_cutoff_sortie", "next_val_sortie", "next_exec_sortie",
     "next_pub_sortie", "next_cash_sortie",
-    "months_held", "pen_found", "kind", "raw", "duree_vie",
+    "months_held", "pen_found", "kind", "raw", "duree_vie", "conservation",
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
     "rate_now", "ref_date",
   ];
@@ -717,6 +717,7 @@
         const S = helperCol("kind");
         const Tc = helperCol("raw");
         const Dv = helperCol("duree_vie");
+        const Cons = helperCol("conservation");
         const U1 = helperCol("max1"), V1 = helperCol("rate1"), W1 = helperCol("max2"), X1 = helperCol("rate2"),
           Y1 = helperCol("max3"), Z1 = helperCol("rate3"), AA1 = helperCol("max4"), AB1 = helperCol("rate4"), AC1 = helperCol("rate5");
         const AD1 = helperCol("rate_now");
@@ -751,6 +752,7 @@
         setF(ws, `${S}${r}`, `IF(${R}${r}=0,"inconnue",INDEX(${pen("C")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${Tc}${r}`, `IF(${R}${r}=0,"",INDEX(${pen("M")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${Dv}${r}`, `IF(${R}${r}=0,"",INDEX(${pen("N")},MATCH(${b},${pen("A")},0)))`);
+        setF(ws, `${Cons}${r}`, `IF(${R}${r}=0,"",INDEX(${pen("O")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${U1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("D")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${V1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("E")},MATCH(${b},${pen("A")},0)))`);
         setF(ws, `${W1}${r}`, `IF(${R}${r}=0,0,INDEX(${pen("F")},MATCH(${b},${pen("A")},0)))`);
@@ -779,7 +781,7 @@
         // active à signaler au client.
         setF(ws, `I${r}`,
           `_xlfn.IFS(` +
-          `${S}${r}="ferme","Fonds fermé : aucun rachat possible."&IF(${Dv}${r}<>"",CHAR(10)&${Dv}${r},""),` +
+          `${S}${r}="ferme","Fonds fermé : aucun rachat possible."&IF(${Dv}${r}<>"",CHAR(10)&${Dv}${r},"")&IF(${Cons}${r}<>"",CHAR(10)&${Cons}${r},""),` +
           `${S}${r}="manuel","À VÉRIFIER MANUELLEMENT : "&${Tc}${r},` +
           `${S}${r}="aucune","",` +
           `${S}${r}="inconnue","",` +
@@ -1009,7 +1011,13 @@
       setF(srcWs, `${colLetter(cashCol)}${bannerRow}`,
         `"Si Date de Retrait Exécuté : "&${frDateExpr(`'${exitSheetName}'!${RD}$1`)}`);
       [cashCol, penCol].forEach((col) => {
-        srcWs.getCell(bannerRow, col).style = JSON.parse(JSON.stringify(headerStyle));
+        const cell = srcWs.getCell(bannerRow, col);
+        cell.style = JSON.parse(JSON.stringify(headerStyle));
+        // headerStyle porte le cadre extérieur ÉPAIS du tableau (bordure "medium" sur ses 4
+        // côtés) : sur ce bandeau, on ne veut PAS ce cadre complet (les cellules voisines à cette
+        // même ligne, ex. "SC DO...", n'en ont pas non plus), sans quoi le trait paraît
+        // beaucoup plus épais qu'ailleurs sur la feuille.
+        cell.border = {};
       });
       srcWs.mergeCells(bannerRow, cashCol, bannerRow, penCol);
       srcWs.getCell(bannerRow, cashCol).alignment = { horizontal: "center", vertical: "middle" };

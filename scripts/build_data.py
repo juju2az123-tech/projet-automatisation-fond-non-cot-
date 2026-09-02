@@ -186,28 +186,60 @@ def extract_duree_vie(raw):
     return None
 
 
+# Intitulés observés dans la base pour la période de blocage/conservation obligatoire (combien
+# de temps l'investisseur ne peut PAS sortir), distincte de la "durée de vie du fonds" (durée
+# totale avant dissolution) — la formulation exacte de cet intitulé varie d'un fonds à l'autre
+# (rédigé au cas par cas à partir du DICI), d'où cette liste de variantes plutôt qu'un seul texte
+# fixe. Reprise telle quelle, jamais reparsée en valeur numérique, même logique que
+# extract_duree_vie ci-dessus.
+CONSERVATION_LABELS = (
+    "conservation obligatoire",
+    "blocage / conservation",
+    "durée initiale",
+    "blocage",
+)
+
+
+def extract_conservation(raw):
+    if not raw or not isinstance(raw, str):
+        return None
+    for segment in raw.split("\n"):
+        segment = segment.strip()
+        lower = segment.lower()
+        if any(lower.startswith(label) for label in CONSERVATION_LABELS):
+            return segment
+    return None
+
+
 def load_duree_vie_by_isin(wb):
-    """ISIN -> phrase "Durée de vie du fonds : ..." (durée + prorogation éventuelle), pour les
-    fonds fermés — seule source de cette information dans la base Althos."""
+    """ISIN -> (phrase "Durée de vie du fonds : ...", phrase de blocage/conservation obligatoire
+    éventuelle), pour les fonds fermés — seule source de ces informations dans la base Althos."""
     ws = wb["Calendriers par fonds"]
     out = {}
     for r in ws.iter_rows(min_row=2, values_only=True):
         isin = r[0]
-        extracted = extract_duree_vie(r[16] if len(r) > 16 else None)
-        if isin and extracted:
-            out[isin] = extracted
+        raw = r[16] if len(r) > 16 else None
+        duree_vie = extract_duree_vie(raw)
+        conservation = extract_conservation(raw)
+        if isin and (duree_vie or conservation):
+            out[isin] = (duree_vie, conservation)
     return out
 
 
 def attach_duree_vie(wb, funds):
-    """Ajoute penalite['dureeVie'] pour chaque fonds fermé dont l'information est disponible —
-    absente (clé non ajoutée) sinon, plutôt qu'une chaîne vide qui laisserait croire à une
-    recherche infructueuse plutôt qu'à une donnée simplement non trouvée dans la base."""
+    """Ajoute penalite['dureeVie'] et penalite['conservation'] pour chaque fonds fermé dont
+    l'information est disponible — absente (clé non ajoutée) sinon, plutôt qu'une chaîne vide qui
+    laisserait croire à une recherche infructueuse plutôt qu'à une donnée simplement non trouvée
+    dans la base."""
     duree_vie_by_isin = load_duree_vie_by_isin(wb)
     for f in funds.values():
         pen = f.get("penalite") or {}
         if pen.get("kind") == "ferme" and f.get("isin") in duree_vie_by_isin:
-            pen["dureeVie"] = duree_vie_by_isin[f["isin"]]
+            duree_vie, conservation = duree_vie_by_isin[f["isin"]]
+            if duree_vie:
+                pen["dureeVie"] = duree_vie
+            if conservation:
+                pen["conservation"] = conservation
     return funds
 
 

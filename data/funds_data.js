@@ -1,6 +1,6 @@
 // Fichier généré automatiquement par scripts/build_data.py — ne pas éditer à la main.
 window.FUNDS_DATA = {
-  "generatedAt": "2026-09-01 14:18",
+  "generatedAt": "2026-09-02 15:34",
   "sourceFiles": [
     "Calendriers_de_fonds_Althos.xlsx",
     "Bibliotheque_de_fonds_Althos.xlsx"
@@ -394,7 +394,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 6 ans, prorogeable de 2 périodes successives d'un an, soit 8 ans maximum après accord du comité des investisseurs."
+        "dureeVie": "Durée de vie du fonds : 6 ans, prorogeable de 2 périodes successives d'un an, soit 8 ans maximum après accord du comité des investisseurs.",
+        "conservation": "Conservation obligatoire : Période de détention recommandée de 6 à 8 ans. L'investisseur ne peut pas demander le rachat de ses parts avant l'expiration du terme du fonds."
       },
       "key": "FR0014007HA4",
       "hasCalendar": false,
@@ -509,7 +510,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 99 ans, échéance au plus tard le 4 novembre 2119, sauf dissolution ou réduction anticipée prévue au règlement."
+        "dureeVie": "Durée de vie du fonds : 99 ans, échéance au plus tard le 4 novembre 2119, sauf dissolution ou réduction anticipée prévue au règlement.",
+        "conservation": "Conservation obligatoire : Le document indique une période de détention recommandée de 5 ans et précise que l'investisseur doit être prêt à conserver le produit pendant au moins 5 ans. --> aucune sortie possible avant 5 ans"
       },
       "key": "FR0013533619",
       "hasCalendar": false,
@@ -534,7 +536,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "Fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 99 ans à compter de la constitution, sauf dissolution anticipée."
+        "dureeVie": "Durée de vie du fonds : 99 ans à compter de la constitution, sauf dissolution anticipée.",
+        "conservation": "Conservation obligatoire : Période de blocage de 6 ans à compter de la souscription. Pour les investissements complémentaires réalisés plus de 3 ans après le dernier investissement, la période de blocage est réduite à 3 ans sous certaines conditions."
       },
       "key": "FR001400K4L0",
       "hasCalendar": false,
@@ -938,7 +941,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "conservation": "Durée initiale : 10 ans à compter de la date de démarrage du fonds."
       },
       "key": "FR00140089C0",
       "hasCalendar": false,
@@ -1062,7 +1066,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "conservation": "Blocage / conservation : aucune sortie possible avant la fin du fonds (sauf cas exceptionnels prévus au règlement)."
       },
       "key": "FR00140086L7",
       "hasCalendar": false,
@@ -1087,7 +1092,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 6 ans, prorogeable 2 fois 1 an, soit une durée maximale de 8 ans (jusqu'au 30/06/2030)."
+        "dureeVie": "Durée de vie du fonds : 6 ans, prorogeable 2 fois 1 an, soit une durée maximale de 8 ans (jusqu'au 30/06/2030).",
+        "conservation": "Conservation obligatoire : Blocage de 6 ans jusqu'au 30/06/2028, sauf cas de déblocage anticipé prévus au règlement (invalidité, décès, licenciement)."
       },
       "key": "FR0013224375",
       "hasCalendar": false,
@@ -1159,7 +1165,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "conservation": "Durée initiale : 6 ans à compter de la constitution du fonds."
       },
       "key": "FR001400K9O3",
       "hasCalendar": false,
@@ -1183,7 +1190,8 @@ window.FUNDS_DATA = {
       "penalite": {
         "kind": "ferme",
         "raw": "fond fermé",
-        "tiers": []
+        "tiers": [],
+        "conservation": "Durée initiale : 7 ans à compter de la date de constitution."
       },
       "key": "FR001400HHK8",
       "hasCalendar": false,
@@ -1280,7 +1288,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "Fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 10 ans, prorogeable 2 fois 1 an, soit 12 ans maximum."
+        "dureeVie": "Durée de vie du fonds : 10 ans, prorogeable 2 fois 1 an, soit 12 ans maximum.",
+        "conservation": "Conservation obligatoire : 5 ans minimum pour conserver le bénéfice de certains régimes fiscaux. Le document précise qu'une demande de rachat durant cette période est susceptible de faire perdre ces avantages."
       },
       "key": "FR0013415056",
       "hasCalendar": false,
@@ -1305,7 +1314,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : Jusqu'au 31 décembre 2027, avec possibilité de prorogation de 2 fois 1 an, soit jusqu'au 31 décembre 2029."
+        "dureeVie": "Durée de vie du fonds : Jusqu'au 31 décembre 2027, avec possibilité de prorogation de 2 fois 1 an, soit jusqu'au 31 décembre 2029.",
+        "conservation": "Conservation obligatoire : 5 ans pour bénéficier de l'exonération fiscale liée aux parts A. Le document précise également que les distributions doivent être réinvesties jusqu'à l'expiration du délai de conservation fiscale de 5 ans suivant le dernier jour de souscription."
       },
       "key": "FR0013411451",
       "hasCalendar": false,
@@ -1354,7 +1364,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 6 ans jusqu'au 27/11/2028, prorogeable 2 fois 1 an (soit 8 ans maximum)."
+        "dureeVie": "Durée de vie du fonds : 6 ans jusqu'au 27/11/2028, prorogeable 2 fois 1 an (soit 8 ans maximum).",
+        "conservation": "Conservation obligatoire : Oui. Aucun rachat n'est possible pendant la durée de vie du fonds (6 ans prorogeables jusqu'à 8 ans), sauf cas exceptionnels prévus au règlement."
       },
       "key": "FR001400C5U8",
       "hasCalendar": false,
@@ -1379,7 +1390,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 6 ans (expiration prévue le 27/11/2028), prorogeable 2 fois 1 an, soit jusqu'à 8 ans maximum."
+        "dureeVie": "Durée de vie du fonds : 6 ans (expiration prévue le 27/11/2028), prorogeable 2 fois 1 an, soit jusqu'à 8 ans maximum.",
+        "conservation": "Conservation obligatoire : Période de détention recommandée de 8 ans (y compris prorogations éventuelles). Pendant la durée de vie du fonds, les avoirs des investisseurs sont bloqués, sauf cas de rachat exceptionnels prévus au règlement."
       },
       "key": "FR001400C5V6",
       "hasCalendar": false,
@@ -1524,7 +1536,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 4 ans à compter du premier closing, avec possibilité de prorogation de 3 fois 1 an, soit jusqu'à 7 ans maximum."
+        "dureeVie": "Durée de vie du fonds : 4 ans à compter du premier closing, avec possibilité de prorogation de 3 fois 1 an, soit jusqu'à 7 ans maximum.",
+        "conservation": "Conservation obligatoire : Le document indique une période de détention recommandée de 7 ans. Il précise également que les porteurs peuvent être amenés à supporter le risque économique de leur investissement jusqu'à la liquidation du fonds.]"
       },
       "key": "FR001400IEE6",
       "hasCalendar": false,
@@ -1549,7 +1562,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 4 ans à compter du premier closing, prorogeable de 3 périodes successives d'un an, soit jusqu'à 7 ans maximum."
+        "dureeVie": "Durée de vie du fonds : 4 ans à compter du premier closing, prorogeable de 3 périodes successives d'un an, soit jusqu'à 7 ans maximum.",
+        "conservation": "Conservation obligatoire : Les porteurs ne peuvent pas exiger le rachat de leurs parts pendant toute la durée du fonds. Durée recommandée de placement : 7 ans."
       },
       "key": "FR0014001LJ0",
       "hasCalendar": false,
@@ -1574,7 +1588,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "Fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 99 ans."
+        "dureeVie": "Durée de vie du fonds : 99 ans.",
+        "conservation": "Conservation obligatoire : Durée minimale de conservation de 5 ans avant de pouvoir mettre en œuvre les clauses de liquidité. La période de détention recommandée est de 9 ans minimum."
       },
       "key": "FR001400IL92",
       "hasCalendar": false,
@@ -2627,7 +2642,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 6 ans (expiration prévue le 27/11/2028), prorogeable 2 fois 1 an, soit jusqu'à 8 ans maximum."
+        "dureeVie": "Durée de vie du fonds : 6 ans (expiration prévue le 27/11/2028), prorogeable 2 fois 1 an, soit jusqu'à 8 ans maximum.",
+        "conservation": "Conservation obligatoire : Période de détention recommandée de 8 ans (y compris prorogations éventuelles). Pendant la durée de vie du fonds, les avoirs des investisseurs sont bloqués, sauf cas de rachat exceptionnels prévus au règlement."
       },
       "key": "FR001400C5W4",
       "hasCalendar": false,
@@ -2916,7 +2932,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable."
+        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable.",
+        "conservation": "Conservation obligatoire :"
       },
       "key": "FR0014009FU2",
       "hasCalendar": false,
@@ -2941,7 +2958,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable."
+        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable.",
+        "conservation": "Conservation obligatoire : jusqu'à la liquidation finale du fonds."
       },
       "key": "FR0014009FV0",
       "hasCalendar": false,
@@ -2966,7 +2984,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable."
+        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable.",
+        "conservation": "Blocage / conservation : jusqu'à la liquidation finale du fonds."
       },
       "key": "FR0014005Z14",
       "hasCalendar": false,
@@ -2991,7 +3010,8 @@ window.FUNDS_DATA = {
         "kind": "ferme",
         "raw": "Fond fermé",
         "tiers": [],
-        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable."
+        "dureeVie": "Durée de vie du fonds : 10 ans minimum, prorogeable.",
+        "conservation": "Blocage / conservation : jusqu'à la liquidation finale du fonds."
       },
       "key": "FR0014005Z22",
       "hasCalendar": false,

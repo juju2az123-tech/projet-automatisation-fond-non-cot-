@@ -472,7 +472,7 @@ def _to_date(iso):
 def write_bdd_penalites(wb, funds):
     ws = wb.create_sheet("BDD_Penalites")
     headers = ["ISIN", "Nom", "Kind", "Max1", "Rate1", "Max2", "Rate2",
-               "Max3", "Rate3", "Max4", "Rate4", "Rate5", "RawText", "DureeVie"]
+               "Max3", "Rate3", "Max4", "Rate4", "Rate5", "RawText", "DureeVie", "Conservation"]
     ws.append(headers)
     for key, f in funds.items():
         isin = f["isin"]
@@ -480,8 +480,8 @@ def write_bdd_penalites(wb, funds):
             continue
         pen = f["penalite"]
         tiers9 = build_tier_columns(pen)
-        ws.append([isin, f["nom"], pen["kind"], *tiers9, pen["raw"] or "", pen.get("dureeVie") or ""])
-    for col, width in zip("ABCDEFGHIJKLMN", [14, 34, 11, 7, 7, 7, 7, 7, 7, 7, 7, 7, 60, 60]):
+        ws.append([isin, f["nom"], pen["kind"], *tiers9, pen["raw"] or "", pen.get("dureeVie") or "", pen.get("conservation") or ""])
+    for col, width in zip("ABCDEFGHIJKLMNO", [14, 34, 11, 7, 7, 7, 7, 7, 7, 7, 7, 7, 60, 60, 60]):
         ws.column_dimensions[col].width = width
     for c in ws[1]:
         c.font = openpyxl.styles.Font(bold=True)
@@ -501,7 +501,7 @@ def format_date_fr(d):
 HELPER_NAMES = [
     "has_sortie", "next_cutoff_sortie", "next_val_sortie", "next_exec_sortie",
     "next_pub_sortie", "next_cash_sortie",
-    "months_held", "pen_found", "kind", "raw", "duree_vie",
+    "months_held", "pen_found", "kind", "raw", "duree_vie", "conservation",
     "max1", "rate1", "max2", "rate2", "max3", "rate3", "max4", "rate4", "rate5",
     "rate_now", "ref_date",
 ]
@@ -769,6 +769,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             S = helper_col("kind")
             Tc = helper_col("raw")
             Dv = helper_col("duree_vie")
+            Cons = helper_col("conservation")
             U1, V1, W1, X1, Y1, Z1, AA1, AB1, AC1 = (helper_col("max1"), helper_col("rate1"), helper_col("max2"),
                                                       helper_col("rate2"), helper_col("max3"), helper_col("rate3"),
                                                       helper_col("max4"), helper_col("rate4"), helper_col("rate5"))
@@ -804,6 +805,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             ws[f"{S}{r}"] = f'=IF({R}{r}=0,"inconnue",INDEX({pen("C")},MATCH({b},{pen("A")},0)))'
             ws[f"{Tc}{r}"] = f'=IF({R}{r}=0,"",INDEX({pen("M")},MATCH({b},{pen("A")},0)))'
             ws[f"{Dv}{r}"] = f'=IF({R}{r}=0,"",INDEX({pen("N")},MATCH({b},{pen("A")},0)))'
+            ws[f"{Cons}{r}"] = f'=IF({R}{r}=0,"",INDEX({pen("O")},MATCH({b},{pen("A")},0)))'
             ws[f"{U1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("D")},MATCH({b},{pen("A")},0)))'
             ws[f"{V1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("E")},MATCH({b},{pen("A")},0)))'
             ws[f"{W1}{r}"] = f'=IF({R}{r}=0,0,INDEX({pen("F")},MATCH({b},{pen("A")},0)))'
@@ -832,7 +834,7 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             # main, ou pénalité active à signaler au client.
             ws[f"I{r}"] = (
                 f'=_xlfn.IFS('
-                f'{S}{r}="ferme","Fonds fermé : aucun rachat possible."&IF({Dv}{r}<>"",CHAR(10)&{Dv}{r},""),'
+                f'{S}{r}="ferme","Fonds fermé : aucun rachat possible."&IF({Dv}{r}<>"",CHAR(10)&{Dv}{r},"")&IF({Cons}{r}<>"",CHAR(10)&{Cons}{r},""),'
                 f'{S}{r}="manuel","À VÉRIFIER MANUELLEMENT : "&{Tc}{r},'
                 f'{S}{r}="aucune","",'
                 f'{S}{r}="inconnue","",'
@@ -953,7 +955,13 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         banner_cell = src_ws.cell(row=banner_row, column=cash_col,
                                    value=f'="Si Date de Retrait Exécuté : "&{fr_date_expr(ref_cell_addr)}')
         for col in (cash_col, pen_col):
-            src_ws.cell(row=banner_row, column=col)._style = copy(header_style)
+            cell = src_ws.cell(row=banner_row, column=col)
+            cell._style = copy(header_style)
+            # header_style porte le cadre extérieur ÉPAIS du tableau (bordure "medium" sur ses 4
+            # côtés) : sur ce bandeau, on ne veut PAS ce cadre complet (les cellules voisines à
+            # cette même ligne, ex. "SC DO...", n'en ont pas non plus), sans quoi le trait paraît
+            # beaucoup plus épais qu'ailleurs sur la feuille.
+            cell.border = Border()
         src_ws.merge_cells(start_row=banner_row, start_column=cash_col, end_row=banner_row, end_column=pen_col)
         banner_cell.alignment = Alignment(horizontal="center", vertical="center")
 

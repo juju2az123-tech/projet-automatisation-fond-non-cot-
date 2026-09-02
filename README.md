@@ -88,8 +88,13 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    au règlement, ex. décès, invalidité) — la base Althos les marque « fond fermé ». Ces fonds sont
    retenus dans la feuille **même sans calendrier de rachat**, avec le message « Fonds fermé :
    aucun rachat possible. » suivi, quand la base le précise (feuille « Calendriers par fonds »),
-   de la durée de vie du fonds et de ses conditions de prorogation, pour que le conseiller ne les
-   découvre pas au moment où le client demande à sortir.
+   de la durée de vie du fonds et de ses conditions de prorogation (segment « Durée de vie du
+   fonds ») **et**, séparément, de la durée pendant laquelle l'investisseur est bloqué sans
+   possibilité de sortie (segment « Conservation obligatoire » ou une de ses variantes de
+   libellé dans la base — « blocage / conservation », « durée initiale »...), les 2 informations
+   étant distinctes et pouvant coexister sur 2 lignes (durée de vie du fonds ; durée de blocage
+   effective de l'investisseur), pour que le conseiller ne les découvre pas au moment où le
+   client demande à sortir.
 
    **La feuille Consolidation elle-même est aussi complétée**, avec 2 colonnes `Rachat — cash
    reçu` et `Pénalité de sortie`, en formule vers la valeur déjà calculée dans « Calendrier de
@@ -166,7 +171,10 @@ directement. Quand une simulation est active, un bandeau « Si Date de Retrait E
 apparaît sur les **2 pages** — sous l'en-tête de chaque tableau (par titulaire) sur « Calendrier de
 sortie », et juste au-dessus des colonnes « Rachat — cash reçu » / « Pénalité de sortie » sur
 Consolidation (même ligne que les libellés de regroupement par contrat déjà présents à cet
-endroit) — pour que ce soit toujours visible, où que le conseiller regarde. Ce bandeau construit
+endroit), avec la même bordure fine que le reste du quadrillage plutôt que le cadre épais hérité
+de l'en-tête (le style d'en-tête est repris pour la couleur/police, mais sa bordure est
+explicitement réinitialisée) — pour que ce soit toujours visible, où que le conseiller regarde,
+sans casser la régularité visuelle du quadrillage autour. Ce bandeau construit
 « JJ/MM/AAAA » lui-même via `DAY()`/`MONTH()`/`YEAR()` plutôt que `TEXT(date,"dd/mm/yyyy")` : les
 codes de format de date de `TEXT()` sont traduits selon la langue d'Excel (« jj/mm/aaaa » en
 français), donc `"dd/mm/yyyy"` y produit `#VALEUR!` — la construction manuelle, elle, ne dépend
@@ -406,7 +414,9 @@ Le script ajoute aussi deux feuilles de données masquées, alimentées par
 - **`BDD_Calendrier`** : une ligne par fonds / type (Souscription ou Rachat) / échéance mensuelle.
 - **`BDD_Penalites`** : une ligne par fonds, avec la règle de pénalité réduite à au plus 4 paliers
   "seuil en mois → taux" + un taux "au-delà" (`build_tier_columns()`), pour rester calculable par
-  une formule `IFS` en cascade sans jamais recourir à une formule matricielle (CSE).
+  une formule `IFS` en cascade sans jamais recourir à une formule matricielle (CSE). Pour les fonds
+  fermés, 2 colonnes de texte libre séparées portent la durée de vie du fonds et sa durée de
+  blocage/conservation (extraites verbatim du texte source, jamais reformulées).
 
 Les 6 colonnes calculées visibles (les 5 dates de rachat + la pénalité) s'appuient sur des
 colonnes de calcul intermédiaires masquées (prochaine échéance de rachat trouvée via
