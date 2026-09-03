@@ -66,7 +66,11 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    Consolidation (pas une couleur codée en dur : elle dépend du thème propre à chaque classeur,
    donc peut être beige, bleue, ou autre selon le fichier). Le quadrillage Excel par défaut est
    désactivé, comme sur Consolidation, pour un fond bien blanc. Police uniforme sur toute la
-   feuille (celle utilisée par la Consolidation, pas un choix arbitraire).
+   feuille (celle utilisée par la Consolidation, pas un choix arbitraire). La ligne d'en-tête
+   elle-même (« Fonds | ISIN | Date d'investissement | ... »), tout comme le bandeau « Si Date de
+   Retrait Exécuté » quand il est affiché, restent SANS aucune bordure — seul leur fond coloré les
+   distingue, sans quoi ils hériteraient (via le style d'en-tête cloné) le cadre épais de
+   Consolidation, jamais désiré à cet endroit précis.
 
    **Colonne Pénalité de sortie** avec un retour à la ligne explicite entre chaque phrase du
    message (ex. « Pénalité de sortie : ... » puis, sur sa propre ligne, « Durée de détention
@@ -121,22 +125,30 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    nettement, plutôt que de risquer un texte coupé.
    Bordures des 2 nouvelles colonnes : PAS de quadrillage complet ligne par ligne (un trait entre
    chaque fonds donnait un aspect surchargé, non désiré) — seul un cadre vertical (reprenant
-   l'épaisseur et la couleur réellement utilisées par les colonnes « contrat » natives de
-   Consolidation) encadre en continu tout le bloc des 2 colonnes sur toute la hauteur du tableau,
-   sans aucun trait entre 2 lignes de fonds consécutives ni entre les 2 colonnes elles-mêmes ; seule
-   une ligne de catégorie (bandeau) affiche un trait fin en haut ET en bas, comme les autres
-   bandeaux de catégorie déjà présents sur la feuille — ce fin trait court sur toute la hauteur du
-   VRAI tableau de fonds (catégories et fonds, détenus ou non par ce client — Consolidation liste
+   l'épaisseur et la couleur réellement utilisées par les colonnes natives de Consolidation)
+   encadre en continu tout le bloc des 2 colonnes sur toute la hauteur du tableau — y compris les
+   éventuelles lignes vides entre 2 fonds d'une même catégorie, jamais seulement les lignes
+   reconnues comme catégorie/fonds, sous peine d'un « trou » dans le trait à cet endroit — sans
+   aucun trait entre 2 lignes de fonds consécutives ni entre les 2 colonnes elles-mêmes ; seule une
+   ligne de catégorie (bandeau) affiche un trait fin en haut ET en bas, comme les autres bandeaux
+   de catégorie déjà présents sur la feuille — ce fin trait court sur toute la hauteur du VRAI
+   tableau de fonds (catégories et fonds, détenus ou non par ce client — Consolidation liste
    l'univers complet des fonds), sans déborder sur un éventuel petit tableau récapitulatif
    hors-tableau plus bas sur la feuille (ex. « dont actions européennes : 15 % ») : une ligne n'y
    est traitée comme une vraie ligne de fonds que si sa colonne TOTAL porte une vraie agrégation
-   (=SUM(...) sur ses colonnes de contrat), pas un simple renvoi vers une autre cellule. Le fichier
-   d'origine ne ferme pas le tableau par une bordure basse sur sa dernière ligne, mais par une
-   bordure haute sur la ligne suivante (souvent une note en italique) — sur les colonnes d'origine
-   uniquement : la présence (mais pas l'épaisseur) de cette bordure de clôture est donc détectée et
-   reproduite sur les 2 nouvelles colonnes à cette même ligne, avec le même trait fin que les
-   bandeaux de catégorie et le même cadre vertical que le reste des 2 colonnes, pour que le trait
-   de fermeture du tableau ne s'arrête pas juste avant elles.
+   (=SUM(...) sur ses colonnes de contrat), pas un simple renvoi vers une autre cellule. Le cadre
+   vertical gauche (« Rachat — cash reçu ») et le cadre vertical droit (« Pénalité de sortie »)
+   peuvent utiliser 2 teintes « medium » légèrement différentes selon le fichier — le cadre gauche
+   reprend donc la bordure de LA colonne réellement adjacente (souvent masquée, juste après
+   TOTAL), plutôt qu'une colonne « contrat » quelconque, pour ne jamais produire une bordure
+   doublée/mal assortie juste à cette jointure précise. Le fichier d'origine ne ferme pas le
+   tableau par une bordure basse sur sa dernière ligne, mais par une bordure haute sur la ligne
+   suivante (souvent une note en italique) — sur les colonnes d'origine uniquement, et SANS cadre
+   vertical à cette ligne précise (juste le trait horizontal) : la présence (mais pas l'épaisseur)
+   de cette bordure de clôture est donc détectée et reproduite sur les 2 nouvelles colonnes à
+   cette même ligne, avec le même trait fin que les bandeaux de catégorie, mais SANS cadre
+   vertical non plus à cette ligne précise — sans quoi le tableau semblerait visuellement
+   « descendre » d'une ligne de trop, au-delà de sa vraie dernière ligne.
    Le bandeau de titre tout en haut est étendu pour
    couvrir les 2 nouvelles colonnes. Consolidation utilise 2 teintes de beige distinctes selon le
    niveau d'imbrication d'une catégorie (ex. catégorie principale en beige foncé, sous-catégorie

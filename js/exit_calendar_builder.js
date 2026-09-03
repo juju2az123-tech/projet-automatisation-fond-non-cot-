@@ -103,16 +103,27 @@
     return { top: side, left: side, bottom: side, right: side };
   }
 
-  /** Bordure verticale extérieure (medium) utilisée par les colonnes "contrat" natives de
-   *  Consolidation (ex. colonne 3, "En direct") — distincte du quadrillage fin des bandeaux de
-   *  catégorie (buildGridBorder ci-dessus, thin). Sert de "cadre" à gauche de "Rachat — cash
-   *  reçu" et à droite de "Pénalité de sortie" : jamais de trait entre les lignes de fonds
-   *  elles-mêmes, ni entre ces 2 colonnes. Un fichier client réel a confirmé ce constat (design
-   *  vérifié cellule par cellule par le conseiller) : les lignes de fonds n'ont AUCUNE bordure
-   *  haute/basse, seule une bordure verticale medium encadre le bloc des 2 colonnes en continu. */
-  function buildVerticalFrameSide(ws, sampleRow) {
+  /** Bordure verticale extérieure (medium) utilisée par les colonnes natives de Consolidation —
+   *  distincte du quadrillage fin des bandeaux de catégorie (buildGridBorder ci-dessus, thin).
+   *  Sert de "cadre" à gauche de "Rachat — cash reçu" et à droite de "Pénalité de sortie" : jamais
+   *  de trait entre les lignes de fonds elles-mêmes, ni entre ces 2 colonnes. Un fichier client
+   *  réel a confirmé ce constat (design vérifié cellule par cellule par le conseiller) : les
+   *  lignes de fonds n'ont AUCUNE bordure haute/basse, seule une bordure verticale medium encadre
+   *  le bloc des 2 colonnes en continu.
+   *  IMPORTANT côté couleur : un même fichier peut utiliser 2 teintes "medium" légèrement
+   *  différentes selon la colonne (ex. colonnes "contrat" vs colonnes juste après TOTAL) — pour
+   *  éviter tout risque de bordure doublée/mal assortie juste à côté d'une bordure native déjà
+   *  présente (colonnes cachées entre TOTAL et cashCol par ex.), `adjacentCol`, s'il est fourni,
+   *  fait reprendre la bordure de LA colonne réellement adjacente plutôt qu'une colonne "contrat"
+   *  quelconque — garantissant une continuité visuelle exacte avec ce qui existe déjà juste à côté. */
+  function buildVerticalFrameSide(ws, sampleRow, adjacentCol) {
     const fallback = { style: "medium", color: { argb: "FFB8A490" } };
     if (!sampleRow) return fallback;
+    if (adjacentCol) {
+      const adjBorder = ws.getCell(sampleRow, adjacentCol).border || {};
+      const adjSide = adjBorder.right || adjBorder.left;
+      if (adjSide && adjSide.style) return JSON.parse(JSON.stringify(adjSide));
+    }
     const border = ws.getCell(sampleRow, 3).border || {};
     const side = border.left || border.right;
     return side ? JSON.parse(JSON.stringify(side)) : fallback;
@@ -653,7 +664,10 @@
         cell.value = label;
         cell.style = JSON.parse(JSON.stringify(headerStyle));
         cell.alignment = { horizontal: "center", vertical: "middle", wrapText: false };
-        cell.border = gridBorder;
+        // Aucune bordure sur la ligne d'en-tête elle-même (ni le quadrillage fin des catégories,
+        // ni le cadre épais hérité de headerStyle) : demandé explicitement, la ligne "Fonds | ISIN
+        // | ..." doit rester sans trait, seul son fond coloré la distingue.
+        cell.border = {};
       });
       ws.getRow(atRow).height = 22;
     }
@@ -664,7 +678,12 @@
     function writeSimBanner(atRow) {
       setF(ws, `A${atRow}`, `"Si Date de Retrait Exécuté : "&${frDateExpr(`${RD}$1`)}`);
       for (let c = 1; c <= headers.length; c++) {
-        ws.getCell(atRow, c).style = JSON.parse(JSON.stringify(headerStyle));
+        const cell = ws.getCell(atRow, c);
+        cell.style = JSON.parse(JSON.stringify(headerStyle));
+        // headerStyle porte le cadre épais ("medium") de l'en-tête de Consolidation : sans
+        // réinitialiser explicitement, ce bandeau hériterait ce cadre au lieu de rester sans
+        // bordure (demandé explicitement).
+        cell.border = {};
       }
       ws.mergeCells(atRow, 1, atRow, headers.length);
       ws.getCell(atRow, 1).alignment = { horizontal: "center", vertical: "middle" };
@@ -1126,31 +1145,44 @@
     }
 
     // Cadre vertical (medium) encadrant en continu le bloc des 2 colonnes, sur TOUTE la hauteur
-    // du tableau (catégories ET fonds) — jamais de trait entre 2 lignes de fonds consécutives, ni
-    // entre "Rachat — cash reçu" et "Pénalité de sortie" elles-mêmes : seule la ligne de catégorie
-    // affiche un trait fin (haut ET bas), comme les autres bandeaux de catégorie de la feuille.
-    // Repris de la bordure verticale réellement utilisée par les colonnes "contrat" natives
-    // (medium), jamais du quadrillage fin de gridBorder qui, lui, sert uniquement aux catégories.
-    const frameSide = buildVerticalFrameSide(srcWs, fundRows[0] !== undefined ? fundRows[0] : categoryRows[0]);
+    // du tableau (catégories ET fonds, y compris les éventuelles lignes vides entre 2 fonds d'une
+    // même catégorie) — jamais de trait entre 2 lignes de fonds consécutives, ni entre "Rachat —
+    // cash reçu" et "Pénalité de sortie" elles-mêmes : seule la ligne de catégorie affiche un
+    // trait fin (haut ET bas), comme les autres bandeaux de catégorie de la feuille. Repris de la
+    // bordure verticale réellement utilisée par les colonnes natives de Consolidation (medium),
+    // jamais du quadrillage fin de gridBorder qui, lui, sert uniquement aux catégories.
+    // 2 couleurs distinctes à gauche et à droite : la colonne juste avant "Rachat — cash reçu"
+    // (souvent masquée) peut utiliser une teinte "medium" légèrement différente de celle des
+    // colonnes "contrat" — reprendre la bordure de LA colonne réellement adjacente pour le côté
+    // gauche évite une bordure doublée/mal assortie juste à cet endroit précis.
+    const sampleRow = fundRows[0] !== undefined ? fundRows[0] : categoryRows[0];
+    const leftFrameSide = buildVerticalFrameSide(srcWs, sampleRow, cashCol - 1);
+    const rightFrameSide = buildVerticalFrameSide(srcWs, sampleRow);
     // Réassigne `.style` en entier (pas `cell.border = ...` isolément) : ExcelJS peut faire
     // partager le même objet de style, en interne, par plusieurs cellules ayant un style
     // identique au chargement — muter une seule propriété dessus contaminerait alors
     // silencieusement d'autres cellules (cf. le commentaire de cloneStyle plus haut).
-    categoryRows.forEach((r) => {
-      const rowFill = JSON.parse(JSON.stringify(srcWs.getCell(r, 1).style.fill || { type: "pattern", pattern: "none" }));
-      srcWs.getCell(r, cashCol).style = {
-        fill: JSON.parse(JSON.stringify(rowFill)),
-        border: { top: gridBorder.top, bottom: gridBorder.top, left: frameSide },
-      };
-      srcWs.getCell(r, penCol).style = {
-        fill: JSON.parse(JSON.stringify(rowFill)),
-        border: { top: gridBorder.top, bottom: gridBorder.top, right: frameSide },
-      };
-    });
-    fundRows.forEach((r) => {
-      srcWs.getCell(r, cashCol).style = { fill: { type: "pattern", pattern: "none" }, border: { left: frameSide } };
-      srcWs.getCell(r, penCol).style = { fill: { type: "pattern", pattern: "none" }, border: { right: frameSide } };
-    });
+    if (categoryRows.length || fundRows.length) {
+      const categorySet = new Set(categoryRows);
+      const bodyFirstRow = Math.min(...categoryRows, ...fundRows);
+      const bodyLastRow = Math.max(...categoryRows, ...fundRows);
+      for (let r = bodyFirstRow; r <= bodyLastRow; r++) {
+        if (categorySet.has(r)) {
+          const rowFill = JSON.parse(JSON.stringify(srcWs.getCell(r, 1).style.fill || { type: "pattern", pattern: "none" }));
+          srcWs.getCell(r, cashCol).style = {
+            fill: JSON.parse(JSON.stringify(rowFill)),
+            border: { top: gridBorder.top, bottom: gridBorder.top, left: leftFrameSide },
+          };
+          srcWs.getCell(r, penCol).style = {
+            fill: JSON.parse(JSON.stringify(rowFill)),
+            border: { top: gridBorder.top, bottom: gridBorder.top, right: rightFrameSide },
+          };
+        } else {
+          srcWs.getCell(r, cashCol).style = { fill: { type: "pattern", pattern: "none" }, border: { left: leftFrameSide } };
+          srcWs.getCell(r, penCol).style = { fill: { type: "pattern", pattern: "none" }, border: { right: rightFrameSide } };
+        }
+      }
+    }
 
     fundRows.forEach((r) => {
       const isinRaw = srcWs.getCell(r, 2).value;
@@ -1186,20 +1218,21 @@
 
     // Ligne de clôture du tableau : le fichier d'origine ne la dessine pas comme bordure
     // basse de la dernière ligne fonds, mais comme bordure haute de la ligne suivante (souvent
-    // une note en italique sous le tableau) — sur les colonnes d'origine uniquement. Sans la
-    // reprendre aussi sur les 2 nouvelles colonnes, la ligne de fermeture du tableau s'arrête
-    // net juste avant elles. On ne recopie que la PRÉSENCE d'une bordure de clôture à cet
-    // endroit (pour savoir s'il y en a une) — pas son épaisseur d'origine, qui est le cadre
-    // épais ("medium") du tableau : on garde plutôt le même trait fin que celui des bandeaux de
-    // catégorie (gridBorder), avec le même cadre vertical (frameSide) que le reste des 2
-    // colonnes, pour un rendu homogène jusqu'à la toute dernière ligne.
+    // une note en italique sous le tableau) — sur les colonnes d'origine uniquement, et SANS
+    // cadre vertical à cette ligne précise (vérifié sur un fichier réel : ni gauche ni droite,
+    // seulement le trait horizontal). Sans la reprendre aussi sur les 2 nouvelles colonnes, la
+    // ligne de fermeture du tableau s'arrête net juste avant elles ; mais y ajouter le cadre
+    // vertical ferait paraître le tableau "descendre" d'une ligne de trop, au-delà de sa vraie
+    // dernière ligne. On ne recopie donc que la PRÉSENCE d'une bordure de clôture à cet endroit
+    // (pour savoir s'il y en a une) et son style fin (comme les bandeaux de catégorie) — jamais le
+    // cadre épais d'origine, ni de cadre vertical.
     if (categoryRows.length || fundRows.length) {
       const lastBodyRow = Math.max(0, ...categoryRows, ...fundRows);
       const closingRow = lastBodyRow + 1;
       const hasClosingBorder = !!(srcWs.getCell(closingRow, 1).border && srcWs.getCell(closingRow, 1).border.top);
       if (hasClosingBorder) {
-        srcWs.getCell(closingRow, cashCol).style = { fill: { type: "pattern", pattern: "none" }, border: { top: gridBorder.top, left: frameSide } };
-        srcWs.getCell(closingRow, penCol).style = { fill: { type: "pattern", pattern: "none" }, border: { top: gridBorder.top, right: frameSide } };
+        srcWs.getCell(closingRow, cashCol).style = { fill: { type: "pattern", pattern: "none" }, border: { top: gridBorder.top } };
+        srcWs.getCell(closingRow, penCol).style = { fill: { type: "pattern", pattern: "none" }, border: { top: gridBorder.top } };
       }
     }
 

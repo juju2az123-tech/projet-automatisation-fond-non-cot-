@@ -96,17 +96,28 @@ def build_grid_border(ws, header_row):
     return Border(top=side, left=side, bottom=side, right=side)
 
 
-def build_vertical_frame_side(ws, sample_row):
-    """Bordure verticale extérieure (medium) utilisée par les colonnes "contrat" natives de
-    Consolidation (ex. colonne 3, "En direct") — distincte du quadrillage fin des bandeaux de
-    catégorie (build_grid_border ci-dessus, thin). Sert de "cadre" à gauche de "Rachat — cash
-    reçu" et à droite de "Pénalité de sortie" : jamais de trait entre les lignes de fonds
-    elles-mêmes, ni entre ces 2 colonnes. Un fichier client réel a confirmé ce constat (design
-    vérifié cellule par cellule par le conseiller) : les lignes de fonds n'ont AUCUNE bordure
-    haute/basse, seule une bordure verticale medium encadre le bloc des 2 colonnes en continu."""
+def build_vertical_frame_side(ws, sample_row, adjacent_col=None):
+    """Bordure verticale extérieure (medium) utilisée par les colonnes natives de Consolidation —
+    distincte du quadrillage fin des bandeaux de catégorie (build_grid_border ci-dessus, thin).
+    Sert de "cadre" à gauche de "Rachat — cash reçu" et à droite de "Pénalité de sortie" : jamais
+    de trait entre les lignes de fonds elles-mêmes, ni entre ces 2 colonnes. Un fichier client réel
+    a confirmé ce constat (design vérifié cellule par cellule par le conseiller) : les lignes de
+    fonds n'ont AUCUNE bordure haute/basse, seule une bordure verticale medium encadre le bloc des
+    2 colonnes en continu.
+    IMPORTANT côté couleur : un même fichier peut utiliser 2 teintes "medium" légèrement
+    différentes selon la colonne (ex. colonnes "contrat" vs colonnes juste après TOTAL) — pour
+    éviter tout risque de bordure doublée/mal assortie juste à côté d'une bordure native déjà
+    présente (colonnes cachées entre TOTAL et cash_col par ex.), adjacent_col, si fourni, fait
+    reprendre la bordure de LA colonne réellement adjacente plutôt qu'une colonne "contrat"
+    quelconque — garantissant une continuité visuelle exacte avec ce qui existe déjà juste à côté."""
     fallback = Side(style="medium", color="FFB8A490")
     if not sample_row:
         return fallback
+    if adjacent_col:
+        adj_border = ws.cell(row=sample_row, column=adjacent_col).border
+        adj_side = adj_border.right or adj_border.left
+        if adj_side is not None and adj_side.style:
+            return copy(adj_side)
     border = ws.cell(row=sample_row, column=3).border
     side = border.left or border.right
     return copy(side) if side is not None and side.style else fallback
@@ -730,7 +741,10 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
             cell = ws.cell(row=at_row, column=i + 1, value=label)
             cell._style = copy(header_style)
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=False)
-            cell.border = grid_border
+            # Aucune bordure sur la ligne d'en-tête elle-même (ni le quadrillage fin des
+            # catégories, ni le cadre épais hérité de header_style) : demandé explicitement, la
+            # ligne "Fonds | ISIN | ..." doit rester sans trait, seul son fond coloré la distingue.
+            cell.border = Border()
         ws.row_dimensions[at_row].height = 22
 
     # Bandeau "Si Date de Retrait Exécuté : XX/XX/XXXX" affiché juste sous chaque en-tête de
@@ -739,7 +753,12 @@ def build_exit_sheet(wb, src_ws, calendar, cal_last_row, pen_last_row, funds_by_
     def write_sim_banner(at_row):
         cell = ws.cell(row=at_row, column=1, value=f'="Si Date de Retrait Exécuté : "&{fr_date_expr(f"{RD}$1")}')
         for c in range(1, len(headers) + 1):
-            ws.cell(row=at_row, column=c)._style = copy(header_style)
+            bcell = ws.cell(row=at_row, column=c)
+            bcell._style = copy(header_style)
+            # header_style porte le cadre épais ("medium") de l'en-tête de Consolidation : sans
+            # réinitialiser explicitement, ce bandeau hériterait ce cadre au lieu de rester sans
+            # bordure (demandé explicitement).
+            bcell.border = Border()
         ws.merge_cells(start_row=at_row, start_column=1, end_row=at_row, end_column=len(headers))
         cell.alignment = Alignment(horizontal="center", vertical="center")
         ws.row_dimensions[at_row].height = 20
@@ -1083,23 +1102,35 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
             cell.border = copy(no_border)
 
     # Cadre vertical (medium) encadrant en continu le bloc des 2 colonnes, sur TOUTE la hauteur du
-    # tableau (catégories ET fonds) — jamais de trait entre 2 lignes de fonds consécutives, ni
-    # entre "Rachat — cash reçu" et "Pénalité de sortie" elles-mêmes : seule la ligne de catégorie
-    # affiche un trait fin (haut ET bas), comme les autres bandeaux de catégorie de la feuille.
-    # Repris de la bordure verticale réellement utilisée par les colonnes "contrat" natives
-    # (medium), jamais du quadrillage fin de grid_border qui, lui, sert uniquement aux catégories.
-    frame_side = build_vertical_frame_side(src_ws, fund_rows[0] if fund_rows else (category_rows[0] if category_rows else None))
-    for r in category_rows:
-        row_fill = copy(src_ws.cell(row=r, column=1).fill)
-        cash_cell = src_ws.cell(row=r, column=cash_col)
-        cash_cell.fill = copy(row_fill)
-        cash_cell.border = Border(top=grid_border.top, bottom=grid_border.top, left=frame_side)
-        pen_cell = src_ws.cell(row=r, column=pen_col)
-        pen_cell.fill = copy(row_fill)
-        pen_cell.border = Border(top=grid_border.top, bottom=grid_border.top, right=frame_side)
-    for r in fund_rows:
-        src_ws.cell(row=r, column=cash_col).border = Border(left=frame_side)
-        src_ws.cell(row=r, column=pen_col).border = Border(right=frame_side)
+    # tableau (catégories ET fonds, y compris les éventuelles lignes vides entre 2 fonds d'une
+    # même catégorie) — jamais de trait entre 2 lignes de fonds consécutives, ni entre "Rachat —
+    # cash reçu" et "Pénalité de sortie" elles-mêmes : seule la ligne de catégorie affiche un
+    # trait fin (haut ET bas), comme les autres bandeaux de catégorie de la feuille. Repris de la
+    # bordure verticale réellement utilisée par les colonnes natives de Consolidation (medium),
+    # jamais du quadrillage fin de grid_border qui, lui, sert uniquement aux catégories.
+    # 2 couleurs distinctes à gauche et à droite : la colonne juste avant "Rachat — cash reçu"
+    # (souvent masquée) peut utiliser une teinte "medium" légèrement différente de celle des
+    # colonnes "contrat" — reprendre la bordure de LA colonne réellement adjacente pour le côté
+    # gauche évite une bordure doublée/mal assortie juste à cet endroit précis.
+    sample_row = fund_rows[0] if fund_rows else (category_rows[0] if category_rows else None)
+    left_frame_side = build_vertical_frame_side(src_ws, sample_row, cash_col - 1)
+    right_frame_side = build_vertical_frame_side(src_ws, sample_row)
+    if category_rows or fund_rows:
+        category_set = set(category_rows)
+        body_first_row = min(category_rows + fund_rows)
+        body_last_row = max(category_rows + fund_rows)
+        for r in range(body_first_row, body_last_row + 1):
+            if r in category_set:
+                row_fill = copy(src_ws.cell(row=r, column=1).fill)
+                cash_cell = src_ws.cell(row=r, column=cash_col)
+                cash_cell.fill = copy(row_fill)
+                cash_cell.border = Border(top=grid_border.top, bottom=grid_border.top, left=left_frame_side)
+                pen_cell = src_ws.cell(row=r, column=pen_col)
+                pen_cell.fill = copy(row_fill)
+                pen_cell.border = Border(top=grid_border.top, bottom=grid_border.top, right=right_frame_side)
+            else:
+                src_ws.cell(row=r, column=cash_col).border = Border(left=left_frame_side)
+                src_ws.cell(row=r, column=pen_col).border = Border(right=right_frame_side)
 
     for r in fund_rows:
         isin_raw = src_ws.cell(row=r, column=2).value
@@ -1135,13 +1166,14 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
 
     # Ligne de clôture du tableau : le fichier d'origine ne la dessine pas comme bordure basse
     # de la dernière ligne fonds, mais comme bordure haute de la ligne suivante (souvent une note
-    # en italique sous le tableau) — sur les colonnes d'origine uniquement. Sans la reprendre
-    # aussi sur les 2 nouvelles colonnes, la ligne de fermeture du tableau s'arrête net juste
-    # avant elles. On ne recopie que la PRÉSENCE d'une bordure de clôture à cet endroit (pour
-    # savoir s'il y en a une) — pas son épaisseur d'origine, qui est le cadre épais ("medium") du
-    # tableau : on garde plutôt le même trait fin que celui des bandeaux de catégorie
-    # (grid_border), avec le même cadre vertical (frame_side) que le reste des 2 colonnes, pour un
-    # rendu homogène jusqu'à la toute dernière ligne.
+    # en italique sous le tableau) — sur les colonnes d'origine uniquement, et SANS cadre vertical
+    # à cette ligne précise (vérifié sur un fichier réel : ni gauche ni droite, seulement le trait
+    # horizontal). Sans la reprendre aussi sur les 2 nouvelles colonnes, la ligne de fermeture du
+    # tableau s'arrête net juste avant elles ; mais y ajouter le cadre vertical ferait paraître le
+    # tableau "descendre" d'une ligne de trop, au-delà de sa vraie dernière ligne. On ne recopie
+    # donc que la PRÉSENCE d'une bordure de clôture à cet endroit (pour savoir s'il y en a une) et
+    # son style fin (comme les bandeaux de catégorie) — jamais le cadre épais d'origine, ni de
+    # cadre vertical.
     if category_rows or fund_rows:
         last_body_row = max(category_rows + fund_rows)
         closing_row = last_body_row + 1
@@ -1149,10 +1181,10 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
         if closing_side and closing_side.style:
             cash_cell = src_ws.cell(row=closing_row, column=cash_col)
             cash_cell.fill = copy(no_fill)
-            cash_cell.border = Border(top=copy(grid_border.top), left=frame_side)
+            cash_cell.border = Border(top=copy(grid_border.top))
             pen_cell = src_ws.cell(row=closing_row, column=pen_col)
             pen_cell.fill = copy(no_fill)
-            pen_cell.border = Border(top=copy(grid_border.top), right=frame_side)
+            pen_cell.border = Border(top=copy(grid_border.top))
 
     extend_merge_right(src_ws, 1, pen_col)
     extend_print_area(src_ws, pen_col)
