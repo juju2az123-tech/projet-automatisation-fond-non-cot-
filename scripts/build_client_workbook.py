@@ -96,6 +96,22 @@ def build_grid_border(ws, header_row):
     return Border(top=side, left=side, bottom=side, right=side)
 
 
+def build_vertical_frame_side(ws, sample_row):
+    """Bordure verticale extérieure (medium) utilisée par les colonnes "contrat" natives de
+    Consolidation (ex. colonne 3, "En direct") — distincte du quadrillage fin des bandeaux de
+    catégorie (build_grid_border ci-dessus, thin). Sert de "cadre" à gauche de "Rachat — cash
+    reçu" et à droite de "Pénalité de sortie" : jamais de trait entre les lignes de fonds
+    elles-mêmes, ni entre ces 2 colonnes. Un fichier client réel a confirmé ce constat (design
+    vérifié cellule par cellule par le conseiller) : les lignes de fonds n'ont AUCUNE bordure
+    haute/basse, seule une bordure verticale medium encadre le bloc des 2 colonnes en continu."""
+    fallback = Side(style="medium", color="FFB8A490")
+    if not sample_row:
+        return fallback
+    border = ws.cell(row=sample_row, column=3).border
+    side = border.left or border.right
+    return copy(side) if side is not None and side.style else fallback
+
+
 PENALTY_PREFIXES = {
     "ferme": "Fonds fermé : aucun rachat possible.",
     "manuel": "À VÉRIFIER MANUELLEMENT : ",
@@ -1066,19 +1082,24 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
             cell.fill = copy(no_fill)
             cell.border = copy(no_border)
 
-    # Le quadrillage doit courir sans interruption sur TOUTE la hauteur du VRAI tableau
-    # (catégories ET fonds, détenus ou non) — sinon chaque fonds non détenu par ce client laisse
-    # un "trou" dans les 2 nouvelles colonnes, puisque Consolidation liste l'univers complet des
-    # fonds, pas seulement ceux de ce client.
+    # Cadre vertical (medium) encadrant en continu le bloc des 2 colonnes, sur TOUTE la hauteur du
+    # tableau (catégories ET fonds) — jamais de trait entre 2 lignes de fonds consécutives, ni
+    # entre "Rachat — cash reçu" et "Pénalité de sortie" elles-mêmes : seule la ligne de catégorie
+    # affiche un trait fin (haut ET bas), comme les autres bandeaux de catégorie de la feuille.
+    # Repris de la bordure verticale réellement utilisée par les colonnes "contrat" natives
+    # (medium), jamais du quadrillage fin de grid_border qui, lui, sert uniquement aux catégories.
+    frame_side = build_vertical_frame_side(src_ws, fund_rows[0] if fund_rows else (category_rows[0] if category_rows else None))
     for r in category_rows:
         row_fill = copy(src_ws.cell(row=r, column=1).fill)
-        for col in (cash_col, pen_col):
-            cell = src_ws.cell(row=r, column=col)
-            cell.fill = copy(row_fill)
-            cell.border = grid_border
+        cash_cell = src_ws.cell(row=r, column=cash_col)
+        cash_cell.fill = copy(row_fill)
+        cash_cell.border = Border(top=grid_border.top, bottom=grid_border.top, left=frame_side)
+        pen_cell = src_ws.cell(row=r, column=pen_col)
+        pen_cell.fill = copy(row_fill)
+        pen_cell.border = Border(top=grid_border.top, bottom=grid_border.top, right=frame_side)
     for r in fund_rows:
-        for col in (cash_col, pen_col):
-            src_ws.cell(row=r, column=col).border = grid_border
+        src_ws.cell(row=r, column=cash_col).border = Border(left=frame_side)
+        src_ws.cell(row=r, column=pen_col).border = Border(right=frame_side)
 
     for r in fund_rows:
         isin_raw = src_ws.cell(row=r, column=2).value
@@ -1118,17 +1139,20 @@ def add_consolidation_columns(src_ws, header_row, total_col, exit_sheet_name, fi
     # aussi sur les 2 nouvelles colonnes, la ligne de fermeture du tableau s'arrête net juste
     # avant elles. On ne recopie que la PRÉSENCE d'une bordure de clôture à cet endroit (pour
     # savoir s'il y en a une) — pas son épaisseur d'origine, qui est le cadre épais ("medium") du
-    # tableau : on garde plutôt le même trait fin que le reste du quadrillage de ces 2 colonnes
-    # (grid_border), pour un rendu homogène sur toute leur hauteur, y compris à la dernière ligne.
+    # tableau : on garde plutôt le même trait fin que celui des bandeaux de catégorie
+    # (grid_border), avec le même cadre vertical (frame_side) que le reste des 2 colonnes, pour un
+    # rendu homogène jusqu'à la toute dernière ligne.
     if category_rows or fund_rows:
         last_body_row = max(category_rows + fund_rows)
         closing_row = last_body_row + 1
         closing_side = src_ws.cell(row=closing_row, column=1).border.top
         if closing_side and closing_side.style:
-            for col in (cash_col, pen_col):
-                cell = src_ws.cell(row=closing_row, column=col)
-                cell.fill = copy(no_fill)
-                cell.border = Border(top=copy(grid_border.top))
+            cash_cell = src_ws.cell(row=closing_row, column=cash_col)
+            cash_cell.fill = copy(no_fill)
+            cash_cell.border = Border(top=copy(grid_border.top), left=frame_side)
+            pen_cell = src_ws.cell(row=closing_row, column=pen_col)
+            pen_cell.fill = copy(no_fill)
+            pen_cell.border = Border(top=copy(grid_border.top), right=frame_side)
 
     extend_merge_right(src_ws, 1, pen_col)
     extend_print_area(src_ws, pen_col)

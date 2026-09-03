@@ -111,27 +111,32 @@ aucune donnée envoyée sur internet — tout se passe dans le navigateur).
    plusieurs lignes dans « Calendrier de sortie »), la ligne unique de Consolidation reprend la
    première trouvée ; le détail par titulaire reste dans l'autre feuille. Colonne Pénalité de
    sortie de largeur 30 (plus étroite que sur « Calendrier de sortie », pour rester proportionnée
-   aux colonnes voisines de Consolidation, plus compactes), quadrillage complet fin (même couleur
-   reprise de Consolidation) — la hauteur de ligne d'origine du fichier client est conservée SAUF
-   si le texte de pénalité pour ce fonds précis (durée de vie ET durée de blocage pour un fonds
-   fermé comprises — les 2 sont prises en compte dans le calcul, pas seulement la 1re) a besoin de
-   plus de place (calculé comme sur « Calendrier de sortie », voir plus haut, avec la même
-   largeur de colonne réduite) : le texte lisible passe avant la régularité visuelle des lignes,
-   mais la grande majorité des lignes (courtes ou vides) garde sa hauteur native, seules les
-   quelques lignes à texte long sont agrandies — au besoin très nettement, plutôt que de risquer
-   un texte coupé. Le
-   quadrillage court sans interruption sur toute la hauteur du VRAI tableau de fonds (catégories
-   et fonds, détenus ou non par ce client — Consolidation liste l'univers complet des fonds), sans
-   déborder sur un éventuel petit tableau récapitulatif hors-tableau plus bas sur la feuille (ex.
-   « dont actions européennes : 15 % ») : une ligne n'y est traitée comme une vraie ligne de fonds
-   que si sa colonne TOTAL porte une vraie agrégation (=SUM(...) sur ses colonnes de contrat), pas
-   un simple renvoi vers une autre cellule. Le fichier d'origine ne ferme pas le tableau par une
-   bordure basse sur sa dernière ligne, mais par une bordure haute sur la ligne suivante (souvent
-   une note en italique) — sur les colonnes d'origine uniquement : la présence (mais pas
-   l'épaisseur) de cette bordure de clôture est donc détectée et reproduite sur les 2 nouvelles
-   colonnes à cette même ligne, avec le même trait fin que le reste de leur quadrillage (jamais le
-   cadre épais d'origine), pour que le trait de fermeture du tableau ne s'arrête pas juste avant
-   elles tout en restant cohérent avec le reste des 2 colonnes.
+   aux colonnes voisines de Consolidation, plus compactes) — la hauteur de ligne d'origine du
+   fichier client est conservée SAUF si le texte de pénalité pour ce fonds précis (durée de vie ET
+   durée de blocage pour un fonds fermé comprises — les 2 sont prises en compte dans le calcul, pas
+   seulement la 1re) a besoin de plus de place (calculé comme sur « Calendrier de sortie », voir
+   plus haut, avec la même largeur de colonne réduite) : le texte lisible passe avant la
+   régularité visuelle des lignes, mais la grande majorité des lignes (courtes ou vides) garde sa
+   hauteur native, seules les quelques lignes à texte long sont agrandies — au besoin très
+   nettement, plutôt que de risquer un texte coupé.
+   Bordures des 2 nouvelles colonnes : PAS de quadrillage complet ligne par ligne (un trait entre
+   chaque fonds donnait un aspect surchargé, non désiré) — seul un cadre vertical (reprenant
+   l'épaisseur et la couleur réellement utilisées par les colonnes « contrat » natives de
+   Consolidation) encadre en continu tout le bloc des 2 colonnes sur toute la hauteur du tableau,
+   sans aucun trait entre 2 lignes de fonds consécutives ni entre les 2 colonnes elles-mêmes ; seule
+   une ligne de catégorie (bandeau) affiche un trait fin en haut ET en bas, comme les autres
+   bandeaux de catégorie déjà présents sur la feuille — ce fin trait court sur toute la hauteur du
+   VRAI tableau de fonds (catégories et fonds, détenus ou non par ce client — Consolidation liste
+   l'univers complet des fonds), sans déborder sur un éventuel petit tableau récapitulatif
+   hors-tableau plus bas sur la feuille (ex. « dont actions européennes : 15 % ») : une ligne n'y
+   est traitée comme une vraie ligne de fonds que si sa colonne TOTAL porte une vraie agrégation
+   (=SUM(...) sur ses colonnes de contrat), pas un simple renvoi vers une autre cellule. Le fichier
+   d'origine ne ferme pas le tableau par une bordure basse sur sa dernière ligne, mais par une
+   bordure haute sur la ligne suivante (souvent une note en italique) — sur les colonnes d'origine
+   uniquement : la présence (mais pas l'épaisseur) de cette bordure de clôture est donc détectée et
+   reproduite sur les 2 nouvelles colonnes à cette même ligne, avec le même trait fin que les
+   bandeaux de catégorie et le même cadre vertical que le reste des 2 colonnes, pour que le trait
+   de fermeture du tableau ne s'arrête pas juste avant elles.
    Le bandeau de titre tout en haut est étendu pour
    couvrir les 2 nouvelles colonnes. Consolidation utilise 2 teintes de beige distinctes selon le
    niveau d'imbrication d'une catégorie (ex. catégorie principale en beige foncé, sous-catégorie
